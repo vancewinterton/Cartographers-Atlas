@@ -14,6 +14,7 @@ import {
   Upload,
   Map as MapIcon,
   ChevronDown,
+  Download,
 } from "lucide-react";
 import { useRef } from "react";
 
@@ -25,6 +26,7 @@ export default function TopBar({
   onSave,
   onImport,
   onSwitchMap,
+  onExport,
 }) {
   const fileRef = useRef(null);
 
@@ -104,6 +106,15 @@ export default function TopBar({
         >
           <Upload className="w-4 h-4 mr-2" />
           Import Image
+        </Button>
+        <Button
+          data-testid="export-png-btn"
+          variant="ghost"
+          onClick={onExport}
+          className="text-stone-300 hover:bg-white/5 hover:text-amber-500 h-9"
+        >
+          <Download className="w-4 h-4 mr-2" />
+          Export PNG
         </Button>
         <div className="h-5 w-px bg-white/10 mx-1" />
         <Button

@@ -206,7 +206,7 @@ function toolHelp(t) {
     circle: "Click and drag to draw a circle.",
     polygon: "Click to add points. Double-click or press Enter to finish.",
     text: "Click on the map to place a text label.",
-    pin: "Click to drop a pin. Click an existing pin to open its details and link a sub-map.",
+    pin: "Click to drop a pin. Click an existing pin to open its details (pick icon, color, link a sub-map). Drag pins to reposition them.",
     "ai-redraw":
       "Drag to select an area, then describe what should appear there. Choose Nano Banana (image edit) or GPT Image 1 (generate).",
     erase: "Click a shape, pin, or label to delete it.",

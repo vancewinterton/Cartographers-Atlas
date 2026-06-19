@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
-import { MapPin } from "lucide-react";
+import { getPinIcon } from "./pinIcons";
 
 /**
  * Canvas with pan/zoom + drawing overlay.
@@ -235,9 +235,10 @@ export default function MapCanvas({
         maxScale={20}
         centerOnInit
         limitToBounds={false}
-        wheel={{ step: 0.15 }}
-        panning={{ disabled: false, velocityDisabled: true, excluded: ["editable-overlay"] }}
+        wheel={{ step: 0.06, smoothStep: 0.005 }}
+        pinch={{ step: 4 }}
         doubleClick={{ disabled: true }}
+        panning={{ disabled: false, velocityDisabled: true, excluded: ["editable-overlay"] }}
         onTransformed={(ref) => setScale(ref.state.scale)}
       >
         {() => (
@@ -247,6 +248,7 @@ export default function MapCanvas({
           >
             <div
               className="relative shadow-2xl"
+              data-canvas-content="true"
               style={{ width: W, height: H, background: "#1a1714" }}
             >
               {mapDoc.image_data ? (
@@ -305,45 +307,36 @@ export default function MapCanvas({
               />
 
               {/* Pins layer (rendered AFTER overlay so it sits on top and receives clicks first) */}
-              {pins.map((p) => (
-                <button
-                  key={p.id}
-                  data-testid={`pin-${p.id}`}
-                  className="editable-overlay absolute pin-bounce z-10"
-                  style={{
-                    left: p.x,
-                    top: p.y,
-                    transform: `translate(-50%, -100%) scale(${1 / Math.max(scale, 0.3)})`,
-                    transformOrigin: "50% 100%",
-                  }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (tool === "erase") {
+              {pins.map((p) => {
+                const Icon = getPinIcon(p.icon);
+                return (
+                  <PinButton
+                    key={p.id}
+                    pin={p}
+                    Icon={Icon}
+                    scale={scale}
+                    W={W}
+                    H={H}
+                    tool={tool}
+                    onClick={() => {
+                      if (tool === "erase") {
+                        onPushHistory();
+                        setPins(pins.filter((pn) => pn.id !== p.id));
+                      } else {
+                        onPinClick(p);
+                      }
+                    }}
+                    onDragEnd={(nx, ny) => {
                       onPushHistory();
-                      setPins(pins.filter((pn) => pn.id !== p.id));
-                    } else {
-                      onPinClick(p);
-                    }
-                  }}
-                >
-                  <div className="relative">
-                    <MapPin
-                      className="w-7 h-7 drop-shadow-lg"
-                      style={{ color: p.color || "#D97706" }}
-                      fill={p.color || "#D97706"}
-                      strokeWidth={1.5}
-                    />
-                    <div
-                      className="absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full whitespace-nowrap px-2 py-0.5 rounded-md text-[11px] font-medium glass text-stone-100"
-                      style={{ display: p.label ? "block" : "none" }}
-                    >
-                      {p.label}
-                      {p.linked_map_id && <span className="ml-1 text-amber-500">↗</span>}
-                    </div>
-                  </div>
-                </button>
-              ))}
+                      setPins(
+                        pins.map((pn) =>
+                          pn.id === p.id ? { ...pn, x: nx, y: ny } : pn,
+                        ),
+                      );
+                    }}
+                  />
+                );
+              })}
 
               {/* Text input overlay (also on top of canvas-overlay) */}
               {textInput && (
@@ -370,9 +363,31 @@ export default function MapCanvas({
         )}
       </TransformWrapper>
 
-      {/* Zoom indicator */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 glass rounded-full px-4 py-1.5 z-30 font-mono-cart text-xs text-stone-400">
-        {Math.round(scale * 100)}%
+      {/* Zoom controls */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 glass rounded-full px-2 py-1 z-30 flex items-center gap-1">
+        <button
+          data-testid="zoom-out-btn"
+          onClick={() => transformRef.current?.zoomOut(0.2, 200)}
+          className="w-7 h-7 rounded-full flex items-center justify-center text-stone-400 hover:text-amber-500 hover:bg-white/5 transition"
+          aria-label="Zoom out"
+        >
+          −
+        </button>
+        <button
+          data-testid="zoom-reset-btn"
+          onClick={() => transformRef.current?.resetTransform(300)}
+          className="font-mono-cart text-xs text-stone-400 hover:text-amber-500 px-3 py-1 rounded-full hover:bg-white/5 transition min-w-[64px]"
+        >
+          {Math.round(scale * 100)}%
+        </button>
+        <button
+          data-testid="zoom-in-btn"
+          onClick={() => transformRef.current?.zoomIn(0.2, 200)}
+          className="w-7 h-7 rounded-full flex items-center justify-center text-stone-400 hover:text-amber-500 hover:bg-white/5 transition"
+          aria-label="Zoom in"
+        >
+          +
+        </button>
       </div>
     </div>
   );
@@ -522,4 +537,96 @@ function cursorFor(tool) {
 
 function rid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+// Pin button with drag-to-reposition support.
+// - Quick click (< 4px movement) triggers onClick (opens sheet / deletes if erase tool)
+// - Drag updates position via onDragEnd (in map coordinates)
+function PinButton({ pin, Icon, scale, W, H, tool, onClick, onDragEnd }) {
+  const ref = useRef(null);
+  const dragRef = useRef(null);
+
+  const onPointerDown = (e) => {
+    e.stopPropagation();
+    const target = ref.current?.closest("[data-canvas-content]") || ref.current?.parentElement;
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    dragRef.current = {
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startMapX: pin.x,
+      startMapY: pin.y,
+      mapW: W,
+      mapH: H,
+      rectW: rect.width,
+      rectH: rect.height,
+      moved: false,
+      lockDrag: tool === "erase", // erase = click only, never drag
+    };
+    e.target.setPointerCapture?.(e.pointerId);
+  };
+
+  const onPointerMove = (e) => {
+    const d = dragRef.current;
+    if (!d || d.lockDrag) return;
+    const dx = ((e.clientX - d.startClientX) / d.rectW) * d.mapW;
+    const dy = ((e.clientY - d.startClientY) / d.rectH) * d.mapH;
+    if (!d.moved && Math.abs(dx) + Math.abs(dy) > 4) d.moved = true;
+    if (d.moved && ref.current) {
+      const nx = d.startMapX + dx;
+      const ny = d.startMapY + dy;
+      ref.current.style.left = `${nx}px`;
+      ref.current.style.top = `${ny}px`;
+      d.lastX = nx;
+      d.lastY = ny;
+    }
+  };
+
+  const onPointerUp = (e) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d) return;
+    if (d.moved && d.lastX != null) {
+      onDragEnd(d.lastX, d.lastY);
+    } else {
+      onClick(e);
+    }
+  };
+
+  return (
+    <button
+      ref={ref}
+      data-testid={`pin-${pin.id}`}
+      className="editable-overlay absolute pin-bounce z-10 cursor-grab active:cursor-grabbing"
+      style={{
+        left: pin.x,
+        top: pin.y,
+        transform: `translate(-50%, -100%) scale(${1 / Math.max(scale, 0.3)})`,
+        transformOrigin: "50% 100%",
+      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+    >
+      <div className="relative">
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center shadow-xl ring-2 ring-black/40"
+          style={{ backgroundColor: pin.color || "#D97706" }}
+        >
+          <Icon className="w-5 h-5 text-stone-950" strokeWidth={2} fill="rgba(0,0,0,0.05)" />
+        </div>
+        <div
+          className="absolute w-3 h-3 -bottom-1 left-1/2 -translate-x-1/2 rotate-45 ring-2 ring-black/40"
+          style={{ backgroundColor: pin.color || "#D97706" }}
+        />
+        <div
+          className="absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full whitespace-nowrap px-2 py-0.5 rounded-md text-[11px] font-medium glass text-stone-100 pointer-events-none"
+          style={{ display: pin.label ? "block" : "none" }}
+        >
+          {pin.label}
+          {pin.linked_map_id && <span className="ml-1 text-amber-500">↗</span>}
+        </div>
+      </div>
+    </button>
+  );
 }

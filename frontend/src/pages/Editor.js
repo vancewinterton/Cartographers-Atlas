@@ -7,6 +7,7 @@ import PropertiesPanel from "../components/editor/PropertiesPanel";
 import MapCanvas from "../components/editor/MapCanvas";
 import AIRedrawDialog from "../components/editor/AIRedrawDialog";
 import NestedMapSheet from "../components/editor/NestedMapSheet";
+import { exportMapAsPng } from "../lib/exportMap";
 import { toast } from "sonner";
 
 // Drawing shape: { id, type, layerId, color, size, points|x|y|w|h|r|text }
@@ -229,6 +230,7 @@ export default function Editor() {
         onSave={save}
         onImport={onImportImage}
         onSwitchMap={(id) => navigate(`/campaign/${campaignId}/map/${id}`)}
+        onExport={() => exportMapAsPng(mapDoc, shapes, pins, layers, campaign.name)}
       />
 
       <ToolDock

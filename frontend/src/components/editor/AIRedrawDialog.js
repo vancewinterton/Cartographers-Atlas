@@ -13,6 +13,7 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from "../ui/radio-group";
+import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
 import { Sparkles, Loader2 } from "lucide-react";
 import { AI } from "../../lib/api";
@@ -21,6 +22,7 @@ import { toast } from "sonner";
 export default function AIRedrawDialog({ region, mapDoc, onClose, onComplete }) {
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState("gemini");
+  const [blend, setBlend] = useState(true);
   const [loading, setLoading] = useState(false);
   const [cropPreview, setCropPreview] = useState(null);
   const cropRef = useRef(null);
@@ -81,7 +83,11 @@ export default function AIRedrawDialog({ region, mapDoc, onClose, onComplete }) 
       }
       const res = await AI.redraw(payload);
       const url = `data:image/png;base64,${res.image_base64}`;
-      onComplete(url);
+      let finalUrl = url;
+      if (blend) {
+        finalUrl = await featherImage(url);
+      }
+      onComplete(finalUrl);
     } catch (e) {
       console.error(e);
       toast.error(
@@ -179,6 +185,19 @@ export default function AIRedrawDialog({ region, mapDoc, onClose, onComplete }) 
               </label>
             </RadioGroup>
           </div>
+
+          <label
+            data-testid="blend-toggle"
+            className="flex items-center justify-between rounded-xl border border-white/10 bg-black/30 px-4 py-3 cursor-pointer"
+          >
+            <div>
+              <div className="text-sm font-medium text-stone-100">Blend edges</div>
+              <div className="text-[10px] text-stone-500 font-mono-cart uppercase tracking-wider mt-0.5">
+                Feather the result so it fades into the surrounding map
+              </div>
+            </div>
+            <Switch checked={blend} onCheckedChange={setBlend} />
+          </label>
         </div>
 
         <DialogFooter>
@@ -214,3 +233,36 @@ export default function AIRedrawDialog({ region, mapDoc, onClose, onComplete }) 
     </Dialog>
   );
 }
+
+// Feather the edges of an image so it blends seamlessly into surroundings.
+// Applies a radial alpha gradient (full opacity in the middle, fully transparent at edges).
+async function featherImage(dataUrl, featherRatio = 0.18) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      // Apply radial alpha mask using destination-in
+      ctx.globalCompositeOperation = "destination-in";
+      const cx = w / 2;
+      const cy = h / 2;
+      const inner = Math.min(w, h) * (0.5 - featherRatio);
+      const outer = Math.min(w, h) * 0.5;
+      const grad = ctx.createRadialGradient(cx, cy, inner, cx, cy, outer);
+      grad.addColorStop(0, "rgba(0,0,0,1)");
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+      resolve(c.toDataURL("image/png"));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+

@@ -201,10 +201,20 @@ async def update_map(map_id: str, payload: MapUpdate):
 
 @api_router.delete("/maps/{map_id}")
 async def delete_map(map_id: str):
-    # also delete children
-    await db.maps.delete_many({"parent_map_id": map_id})
-    await db.maps.delete_one({"id": map_id})
-    return {"ok": True}
+    # Recursive cascade: delete all descendants regardless of depth
+    to_delete = [map_id]
+    frontier = [map_id]
+    while frontier:
+        kids = await db.maps.find(
+            {"parent_map_id": {"$in": frontier}}, {"_id": 0, "id": 1}
+        ).to_list(1000)
+        kid_ids = [k["id"] for k in kids]
+        if not kid_ids:
+            break
+        to_delete.extend(kid_ids)
+        frontier = kid_ids
+    await db.maps.delete_many({"id": {"$in": to_delete}})
+    return {"ok": True, "deleted": len(to_delete)}
 
 
 # ---------- AI Routes ----------

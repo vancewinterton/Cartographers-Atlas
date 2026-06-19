@@ -9,7 +9,10 @@ import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
-import { MapPin, Trash2, Link2, Plus, ArrowUpRight } from "lucide-react";
+import { Trash2, Link2, Plus, ArrowUpRight } from "lucide-react";
+import { PIN_ICONS, getPinIcon } from "./pinIcons";
+
+const PIN_COLORS = ["#D97706", "#EF4444", "#10B981", "#3B82F6", "#A855F7", "#F3F2F0"];
 
 export default function NestedMapSheet({
   open,
@@ -35,6 +38,7 @@ export default function NestedMapSheet({
 
   if (!pin) return null;
 
+  const PinIconC = getPinIcon(pin.icon);
   const linkedMap = pin.linked_map_id
     ? allMaps.find((m) => m.id === pin.linked_map_id)
     : null;
@@ -48,16 +52,72 @@ export default function NestedMapSheet({
       <SheetContent
         data-testid="nested-map-sheet"
         side="right"
-        className="bg-[#1E1B18] border-white/10 text-stone-100 w-[420px] sm:max-w-md"
+        className="bg-[#1E1B18] border-white/10 text-stone-100 w-[420px] sm:max-w-md overflow-y-auto"
       >
         <SheetHeader>
           <SheetTitle className="font-display text-3xl flex items-center gap-2">
-            <MapPin className="w-5 h-5" style={{ color: pin.color || "#D97706" }} fill={pin.color || "#D97706"} />
+            <span
+              className="w-8 h-8 rounded-full inline-flex items-center justify-center"
+              style={{ backgroundColor: pin.color || "#D97706" }}
+            >
+              <PinIconC className="w-4 h-4 text-stone-950" strokeWidth={2} />
+            </span>
             Pin Details
           </SheetTitle>
         </SheetHeader>
 
         <div className="space-y-5 mt-6">
+          <div>
+            <Label className="font-mono-cart text-[10px] uppercase tracking-[0.2em] text-stone-500">
+              Icon
+            </Label>
+            <div className="grid grid-cols-6 gap-1.5 mt-2">
+              {PIN_ICONS.map((p) => {
+                const Ic = p.Icon;
+                const active = (pin.icon || "pin") === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    data-testid={`pin-icon-${p.id}`}
+                    title={p.label}
+                    onClick={() => onUpdate({ icon: p.id })}
+                    className={`aspect-square rounded-lg flex items-center justify-center transition ${
+                      active
+                        ? "bg-amber-600/15 ring-1 ring-amber-600/40 text-amber-500"
+                        : "bg-black/30 text-stone-400 hover:bg-white/5 hover:text-stone-100"
+                    }`}
+                  >
+                    <Ic className="w-4 h-4" strokeWidth={active ? 2 : 1.6} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <Label className="font-mono-cart text-[10px] uppercase tracking-[0.2em] text-stone-500">
+              Color
+            </Label>
+            <div className="flex gap-2 mt-2">
+              {PIN_COLORS.map((c) => (
+                <button
+                  key={c}
+                  data-testid={`pin-color-${c}`}
+                  onClick={() => onUpdate({ color: c })}
+                  style={{ backgroundColor: c }}
+                  className={`w-7 h-7 rounded-full border transition ${
+                    pin.color === c
+                      ? "border-amber-500 ring-2 ring-amber-500/40"
+                      : "border-white/10 hover:border-white/30"
+                  }`}
+                  aria-label={c}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="h-px bg-white/5" />
+
           <div>
             <Label className="font-mono-cart text-[10px] uppercase tracking-[0.2em] text-stone-500">
               Label
