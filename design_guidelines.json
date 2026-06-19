@@ -1,0 +1,107 @@
+{
+  "project_context": {
+    "app_type": "hybrid_fullstack",
+    "domain": "Tabletop RPG / Creative Tool",
+    "theme": "dark",
+    "archetype": "5_luxury_cinematic",
+    "vibe": "Worn fantasy cartographer's workshop + modern professional usability. Tactile, mysterious yet highly functional."
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Cormorant Garamond, serif",
+      "weights": ["400", "600", "700"],
+      "usage": "Campaign titles, major panel headers, empty states.",
+      "styling": "tracking-tight, leading-none"
+    },
+    "body": {
+      "font_family": "Outfit, sans-serif",
+      "weights": ["300", "400", "500", "600"],
+      "usage": "Tooltips, UI labels, properties panel, buttons.",
+      "styling": "leading-relaxed"
+    },
+    "mono": {
+      "font_family": "JetBrains Mono, monospace",
+      "usage": "Coordinates, zoom levels, pixel dimensions."
+    }
+  },
+  "color_palette": {
+    "background": {
+      "base": "#0B0A09",
+      "canvas_wrapper": "#141210",
+      "surface": "#1E1B18",
+      "surface_floating": "rgba(20, 18, 16, 0.75)"
+    },
+    "accent": {
+      "primary": "#D97706",
+      "primary_hover": "#F59E0B",
+      "ai_magic": "#10B981"
+    },
+    "text": {
+      "primary": "#F3F2F0",
+      "secondary": "#A8A29E",
+      "muted": "#78716C",
+      "inverse": "#0B0A09"
+    },
+    "border": {
+      "subtle": "rgba(255, 255, 255, 0.08)",
+      "focus": "rgba(217, 119, 6, 0.5)"
+    }
+  },
+  "layout_and_spacing": {
+    "strategy": "Full-bleed canvas with floating UI panels (Figma/Procreate style).",
+    "components": {
+      "top_bar": "Floating top-center or top-left. Glassmorphism: backdrop-blur-xl bg-surface_floating border border-white/10. Contains Home, Campaign Name, Export.",
+      "tool_dock": "Floating middle-left. Vertical layout. Compact spacing (gap-2, p-2). Rounded-2xl.",
+      "properties_panel": "Floating right, full height minus margins (top-4 right-4 bottom-4). Width: w-80. Houses Layers, Brush Settings, AI Redraw inputs.",
+      "nested_map_sheet": "Shadcn Sheet sliding from right. Dark overlay over canvas."
+    },
+    "spacing_scale": "Use Tailwind defaults but favor p-4 to p-6 inside panels for breathing room. Tools use tight p-2."
+  },
+  "ui_components": {
+    "buttons": "Flat solid for primary. Glassy/outline for secondary. border border-white/10 hover:bg-white/5.",
+    "inputs": "Shadcn Input. bg-black/40 border border-white/10 focus:border-amber-600 focus:ring-1 focus:ring-amber-600.",
+    "cards": "Campaign dashboard uses Bento grid. Images with bg-black/50 overlay. hover:-translate-y-1 transition-transform.",
+    "icons": "Use @phosphor-icons/react. Duotone or Fill weight for active tools, Regular for inactive."
+  },
+  "features_implementation": {
+    "campaign_dashboard": "Grid layout (grid-cols-1 md:grid-cols-3 gap-8). Cards have background images from campaigns, huge Cormorant Garamond titles.",
+    "map_canvas": "Wrap the main map image in react-zoom-pan-pinch TransformWrapper. The image should act as the base layer.",
+    "drawing_toolkit": "Overlay an HTML5 canvas element perfectly aligned with the base image inside the TransformComponent. Use basic canvas 2D context for freehand, shapes, and text.",
+    "ai_region_redraw": "Tool mode: user drags a rectangle. This shows a localized floating popover (absolute positioned near the rect) with a Textarea for prompt and model selector (Nano Banana / GPT Image 1). On submit, simulate generation and paste the new image chunk onto the canvas.",
+    "pins_and_nested_maps": "Tool mode: click to drop a pin. Pins are absolute-positioned React elements over the map. Clicking a pin opens the Properties Panel or a Sheet to view/edit the 'Linked Map' thumbnail and description."
+  },
+  "interaction_and_motion": {
+    "tool_selection": "Active tool gets bg-white/10 and text-amber-500.",
+    "hover_states": "All interactables must have hover:bg-white/5 or similar. Text color transitions.",
+    "canvas_navigation": "Spacebar+Drag to pan (simulated via react-zoom-pan-pinch panning rules), scroll to zoom."
+  },
+  "media_assets": {
+    "dashboard_hero": {
+      "url": "https://images.pexels.com/photos/11013091/pexels-photo-11013091.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Background image for the campaign selection dashboard. Darken with overlay."
+    },
+    "demo_world_map": {
+      "url": "https://images.pexels.com/photos/592753/pexels-photo-592753.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Default placeholder for a newly opened world map."
+    },
+    "demo_nested_map": {
+      "url": "https://images.pexels.com/photos/7150641/pexels-photo-7150641.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Thumbnail image showing a linked tabletop dungeon map inside a pin's details."
+    }
+  },
+  "accessibility_and_testing": {
+    "contrast": "Ensure all text passes WCAG AA against the dark #1E1B18 backgrounds.",
+    "data_testid": "MANDATORY. Add data-testid to all interactive elements. Examples: 'tool-brush', 'campaign-card', 'ai-redraw-prompt'."
+  },
+  "instructions_to_main_agent": [
+    "1. Setup standard React App with Tailwind + Shadcn. Use ONLY .js files (no .tsx).",
+    "2. Install dependencies: yarn add react-zoom-pan-pinch @phosphor-icons/react",
+    "3. Build the Campaign Dashboard first (grid of campaigns).",
+    "4. Build the Map Editor Canvas: Use react-zoom-pan-pinch for the pan/zoom wrapper.",
+    "5. Inside the canvas, layer the Map Image, the Drawing Canvas (HTML5 canvas), and the Pins layer (React elements).",
+    "6. Build floating UI panels (Tool dock, Top bar, Properties panel) OUTSIDE the transform wrapper so they stay fixed on screen.",
+    "7. Implement standard drawing logic in the canvas (brush, rect, circle).",
+    "8. Implement AI Redraw: Draw a selection box, show prompt input, mock the AI return with a colored box or an overlay image.",
+    "9. Add data-testid to everything interactive."
+  ]
+}
