@@ -8,6 +8,16 @@ import MapCanvas from "../components/editor/MapCanvas";
 import AIRedrawDialog from "../components/editor/AIRedrawDialog";
 import NestedMapSheet from "../components/editor/NestedMapSheet";
 import { exportMapAsPng } from "../lib/exportMap";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 import { toast } from "sonner";
 
 // Drawing shape: { id, type, layerId, color, size, points|x|y|w|h|r|text }
@@ -35,6 +45,8 @@ export default function Editor() {
   const [selectedPin, setSelectedPin] = useState(null);
   const [aiRegion, setAiRegion] = useState(null); // {x,y,w,h, imageDataURL}
   const [nestedSheetOpen, setNestedSheetOpen] = useState(false);
+  const [pinColorFilter, setPinColorFilter] = useState(new Set());
+  const [pendingDeletePin, setPendingDeletePin] = useState(null);
 
   const undoStack = useRef([]);
   const redoStack = useRef([]);
@@ -174,9 +186,25 @@ export default function Editor() {
   };
 
   const deletePin = (pinId) => {
+    const p = pins.find((pn) => pn.id === pinId);
+    if (!p) return;
+    const hasContent =
+      (p.label && p.label.trim() && p.label !== "New Pin") ||
+      (p.description && p.description.trim()) ||
+      p.image ||
+      p.linked_map_id;
+    if (hasContent) {
+      setPendingDeletePin(p);
+      return;
+    }
+    confirmDeletePin(pinId);
+  };
+
+  const confirmDeletePin = (pinId) => {
     pushHistory();
     setPins((ps) => ps.filter((p) => p.id !== pinId));
     setNestedSheetOpen(false);
+    setPendingDeletePin(null);
   };
 
   const createLinkedMap = async (pin, name) => {
@@ -220,6 +248,7 @@ export default function Editor() {
         onPushHistory={pushHistory}
         onPinClick={openPinSheet}
         onAIRegionSelected={setAiRegion}
+        pinColorFilter={pinColorFilter}
       />
 
       <TopBar
@@ -254,6 +283,9 @@ export default function Editor() {
         setActiveLayerId={setActiveLayerId}
         shapes={shapes}
         setShapes={setShapes}
+        pins={pins}
+        pinColorFilter={pinColorFilter}
+        setPinColorFilter={setPinColorFilter}
       />
 
       {aiRegion && (
@@ -299,6 +331,45 @@ export default function Editor() {
           navigate(`/campaign/${campaignId}/map/${id}`);
         }}
       />
+
+      <AlertDialog
+        open={!!pendingDeletePin}
+        onOpenChange={(o) => !o && setPendingDeletePin(null)}
+      >
+        <AlertDialogContent
+          data-testid="confirm-delete-pin-dialog"
+          className="bg-[#1E1B18] border-white/10"
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-2xl">
+              Delete &ldquo;{pendingDeletePin?.label || "this pin"}&rdquo;?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-stone-400">
+              This pin has notes
+              {pendingDeletePin?.image ? ", an attached image" : ""}
+              {pendingDeletePin?.linked_map_id
+                ? ", and a linked sub-map"
+                : ""}
+              . Deleting it is permanent.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              data-testid="confirm-delete-pin-cancel"
+              className="bg-transparent border-white/10 hover:bg-white/5"
+            >
+              Keep it
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="confirm-delete-pin-confirm"
+              onClick={() => confirmDeletePin(pendingDeletePin.id)}
+              className="bg-red-600 hover:bg-red-500 text-stone-50"
+            >
+              Delete pin
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

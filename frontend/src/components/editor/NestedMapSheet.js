@@ -9,7 +9,7 @@ import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
-import { Trash2, Link2, Plus, ArrowUpRight } from "lucide-react";
+import { Trash2, Link2, Plus, ArrowUpRight, Upload, X } from "lucide-react";
 import { PIN_ICONS, getPinIcon } from "./pinIcons";
 
 const PIN_COLORS = ["#D97706", "#EF4444", "#10B981", "#3B82F6", "#A855F7", "#F3F2F0"];
@@ -143,6 +143,50 @@ export default function NestedMapSheet({
               placeholder="Lore, NPCs, encounters…"
               className="bg-black/40 border-white/10 mt-2 min-h-[100px]"
             />
+          </div>
+
+          <div>
+            <Label className="font-mono-cart text-[10px] uppercase tracking-[0.2em] text-stone-500">
+              Image
+            </Label>
+            {pin.image ? (
+              <div className="mt-2 relative rounded-xl overflow-hidden border border-white/10">
+                <img
+                  src={pin.image}
+                  alt="pin"
+                  className="w-full max-h-48 object-cover"
+                  data-testid="pin-image-preview"
+                />
+                <button
+                  data-testid="pin-image-remove"
+                  onClick={() => onUpdate({ image: null })}
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 backdrop-blur text-stone-200 hover:text-red-400 flex items-center justify-center"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <label
+                data-testid="pin-image-upload"
+                className="mt-2 flex items-center justify-center gap-2 px-4 py-6 rounded-xl border border-dashed border-white/15 bg-black/20 cursor-pointer hover:bg-black/30 hover:border-amber-700/40 transition text-stone-400 hover:text-amber-500 text-sm"
+              >
+                <Upload className="w-4 h-4" />
+                Attach an image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    const reader = new FileReader();
+                    reader.onload = () => onUpdate({ image: reader.result });
+                    reader.readAsDataURL(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            )}
           </div>
 
           <div className="h-px bg-white/5" />

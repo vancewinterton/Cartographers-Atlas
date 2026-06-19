@@ -26,6 +26,9 @@ export default function PropertiesPanel({
   setActiveLayerId,
   shapes,
   setShapes,
+  pins,
+  pinColorFilter,
+  setPinColorFilter,
 }) {
   const addLayer = () => {
     const id = "L" + (layers.length + 1) + "_" + Math.random().toString(36).slice(2, 6);
@@ -172,6 +175,64 @@ export default function PropertiesPanel({
           {toolHelp(tool)}
         </p>
       </Section>
+
+      {/* Pin color filter */}
+      {pins && pins.length > 0 && (
+        <Section title="Filter Pins by Color">
+          <PinColorFilter
+            pins={pins}
+            hidden={pinColorFilter}
+            onToggle={(c) => {
+              const next = new Set(pinColorFilter);
+              if (next.has(c)) next.delete(c);
+              else next.add(c);
+              setPinColorFilter(next);
+            }}
+          />
+        </Section>
+      )}
+    </div>
+  );
+}
+
+function PinColorFilter({ pins, hidden, onToggle }) {
+  const counts = pins.reduce((acc, p) => {
+    const c = p.color || "#D97706";
+    acc[c] = (acc[c] || 0) + 1;
+    return acc;
+  }, {});
+  const entries = Object.entries(counts);
+  return (
+    <div className="space-y-1.5">
+      {entries.map(([c, n]) => {
+        const off = hidden.has(c);
+        return (
+          <button
+            key={c}
+            data-testid={`pin-filter-${c}`}
+            onClick={() => onToggle(c)}
+            className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition ${
+              off ? "opacity-40 hover:opacity-70" : "hover:bg-white/5"
+            }`}
+          >
+            <span
+              className="w-3.5 h-3.5 rounded-full border border-white/10 shrink-0"
+              style={{ backgroundColor: c }}
+            />
+            <span className="text-sm text-stone-200 flex-1 text-left font-mono-cart">
+              {c.toUpperCase()}
+            </span>
+            <span className="font-mono-cart text-[10px] text-stone-500">
+              {n}
+            </span>
+            {off ? (
+              <EyeOff className="w-3.5 h-3.5 text-stone-500" />
+            ) : (
+              <Eye className="w-3.5 h-3.5 text-stone-300" />
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -206,10 +267,14 @@ function toolHelp(t) {
     circle: "Click and drag to draw a circle.",
     polygon: "Click to add points. Double-click or press Enter to finish.",
     text: "Click on the map to place a text label.",
-    pin: "Click to drop a pin. Click an existing pin to open its details (pick icon, color, link a sub-map). Drag pins to reposition them.",
+    pin: "Click to drop a pin. Click an existing pin to open its details (pick icon, color, image, link a sub-map). Drag pins to reposition them.",
+    token: "Click to drop an enemy token. Drag tokens to move them across the battlefield. Stroke size sets token diameter.",
+    asset: "Click on the map to import a character portrait, token art, or other image. Drag to move.",
+    grid: "Click and drag to place a grid. Stroke size sets the cell size. Drag the grid to reposition it.",
     "ai-redraw":
       "Drag to select an area, then describe what should appear there. Choose Nano Banana (image edit) or GPT Image 1 (generate).",
-    erase: "Click a shape, pin, or label to delete it.",
+    "soft-erase": "Drag over brush strokes to softly erase parts of them. Stroke size sets eraser radius.",
+    erase: "Click a shape, pin, token, asset, or label to delete it.",
   };
   return help[t] || "";
 }

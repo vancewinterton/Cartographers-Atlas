@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { getPinIcon } from "./pinIcons";
 
-/**
- * Canvas with pan/zoom + drawing overlay.
- * Drawing happens in MAP image coordinates (not screen) so it stays aligned at any zoom.
- */
+const HTML_SHAPE_TYPES = new Set(["asset", "token", "grid"]);
+
 export default function MapCanvas({
   mapDoc,
   tool,
@@ -20,6 +18,7 @@ export default function MapCanvas({
   onPushHistory,
   onPinClick,
   onAIRegionSelected,
+  pinColorFilter,
 }) {
   const W = mapDoc.image_width || 1600;
   const H = mapDoc.image_height || 1000;
@@ -30,6 +29,9 @@ export default function MapCanvas({
   const [textInput, setTextInput] = useState(null); // {x,y}
   const transformRef = useRef(null);
   const [scale, setScale] = useState(1);
+  const assetFileInputRef = useRef(null);
+  const pendingAssetPosRef = useRef(null);
+  const softErasePushedRef = useRef(false);
 
   // ---------- Helpers ----------
   const getMapCoords = (e) => {
@@ -62,9 +64,44 @@ export default function MapCanvas({
           label: "New Pin",
           description: "",
           color,
+          icon: "pin",
           linked_map_id: null,
         },
       ]);
+      return;
+    }
+
+    if (tool === "token") {
+      onPushHistory();
+      const sz = Math.max(20, brushSize * 6);
+      setShapes([
+        ...shapes,
+        {
+          id: rid(),
+          type: "token",
+          layerId: activeLayerId,
+          color,
+          size: sz,
+          x: p.x,
+          y: p.y,
+          label: "",
+        },
+      ]);
+      return;
+    }
+
+    if (tool === "asset") {
+      pendingAssetPosRef.current = p;
+      assetFileInputRef.current?.click();
+      return;
+    }
+
+    if (tool === "soft-erase") {
+      onPushHistory();
+      softErasePushedRef.current = true;
+      applySoftErase(p);
+      // begin a drawing pseudo-state so onPointerMove keeps erasing
+      setDrawing({ type: "soft-erase", x: p.x, y: p.y });
       return;
     }
 
@@ -111,13 +148,18 @@ export default function MapCanvas({
       return;
     }
 
-    if (tool === "rect" || tool === "circle" || tool === "ai-redraw") {
+    if (tool === "rect" || tool === "circle" || tool === "ai-redraw" || tool === "grid") {
       onPushHistory();
+      let drawType;
+      if (tool === "ai-redraw") drawType = "ai-region";
+      else if (tool === "grid") drawType = "grid";
+      else drawType = tool;
       setDrawing({
-        type: tool === "ai-redraw" ? "ai-region" : tool,
+        type: drawType,
         layerId: activeLayerId,
         color,
         size: brushSize,
+        cellSize: Math.max(20, brushSize * 8),
         x: p.x,
         y: p.y,
         w: 0,
@@ -151,6 +193,25 @@ export default function MapCanvas({
       setDrawing(null);
       return;
     }
+    if (drawing.type === "soft-erase") {
+      setDrawing(null);
+      softErasePushedRef.current = false;
+      return;
+    }
+    if (drawing.type === "grid") {
+      const x = Math.min(drawing.x, drawing.x + drawing.w);
+      const y = Math.min(drawing.y, drawing.y + drawing.h);
+      const w = Math.abs(drawing.w);
+      const h = Math.abs(drawing.h);
+      if (w > 20 && h > 20) {
+        setShapes([
+          ...shapes,
+          { ...drawing, id: rid(), x, y, w, h },
+        ]);
+      }
+      setDrawing(null);
+      return;
+    }
     if (drawing.type !== "brush") {
       // normalize rect/circle
       const x = Math.min(drawing.x, drawing.x + drawing.w);
@@ -167,6 +228,32 @@ export default function MapCanvas({
         setShapes([...shapes, { ...drawing, id: rid() }]);
     }
     setDrawing(null);
+  };
+
+  // Soft erase: filter out points within radius from brush strokes on visible+unlocked layers.
+  const applySoftErase = (p) => {
+    const r = Math.max(6, brushSize * 3);
+    const r2 = r * r;
+    const visibleLayerIds = new Set(layers.filter((l) => l.visible && !l.locked).map((l) => l.id));
+    let changed = false;
+    const next = shapes
+      .map((s) => {
+        if (s.type !== "brush" || !visibleLayerIds.has(s.layerId)) return s;
+        const newPoints = [];
+        for (let i = 0; i < s.points.length; i += 2) {
+          const dx = s.points[i] - p.x;
+          const dy = s.points[i + 1] - p.y;
+          if (dx * dx + dy * dy > r2) {
+            newPoints.push(s.points[i], s.points[i + 1]);
+          } else {
+            changed = true;
+          }
+        }
+        if (newPoints.length === s.points.length) return s;
+        return { ...s, points: newPoints };
+      })
+      .filter((s) => s.type !== "brush" || s.points.length >= 4);
+    if (changed) setShapes(next);
   };
 
   const finishPolygon = () => {
@@ -267,18 +354,21 @@ export default function MapCanvas({
                 </div>
               )}
 
-              {/* Shape SVG layer */}
+              {/* Shape SVG layer (only SVG types — assets/tokens/grids render as HTML below) */}
               <svg
                 className="absolute inset-0 w-full h-full pointer-events-none"
                 viewBox={`0 0 ${W} ${H}`}
                 preserveAspectRatio="none"
               >
                 {shapes
-                  .filter((s) => visibleLayerIds.has(s.layerId))
+                  .filter((s) => visibleLayerIds.has(s.layerId) && !HTML_SHAPE_TYPES.has(s.type))
                   .map((s) => (
                     <ShapeEl key={s.id} s={s} />
                   ))}
-                {drawing && <ShapeEl s={drawing} preview />}
+                {drawing && drawing.type !== "soft-erase" && drawing.type !== "grid" && (
+                  <ShapeEl s={drawing} preview />
+                )}
+                {drawing && drawing.type === "grid" && <GridPreview s={drawing} />}
                 {polygonPts && (
                   <polyline
                     points={pairs(polygonPts).join(" ")}
@@ -291,6 +381,46 @@ export default function MapCanvas({
                   />
                 )}
               </svg>
+
+              {/* HTML shape layer — assets, tokens, grids (draggable) */}
+              {shapes
+                .filter((s) => visibleLayerIds.has(s.layerId) && HTML_SHAPE_TYPES.has(s.type))
+                .map((s) => (
+                  <MoveableShape
+                    key={s.id}
+                    shape={s}
+                    W={W}
+                    H={H}
+                    tool={tool}
+                    onDragEnd={(nx, ny) => {
+                      onPushHistory();
+                      setShapes(
+                        shapes.map((sh) =>
+                          sh.id === s.id ? { ...sh, x: nx, y: ny } : sh,
+                        ),
+                      );
+                    }}
+                    onClick={() => {
+                      if (tool === "erase") {
+                        onPushHistory();
+                        setShapes(shapes.filter((sh) => sh.id !== s.id));
+                      }
+                    }}
+                  />
+                ))}
+
+              {/* Soft-erase cursor preview */}
+              {drawing && drawing.type === "soft-erase" && (
+                <div
+                  className="absolute pointer-events-none rounded-full border-2 border-emerald-400/60 bg-emerald-400/10"
+                  style={{
+                    left: drawing.x - Math.max(6, brushSize * 3),
+                    top: drawing.y - Math.max(6, brushSize * 3),
+                    width: Math.max(6, brushSize * 3) * 2,
+                    height: Math.max(6, brushSize * 3) * 2,
+                  }}
+                />
+              )}
 
               {/* Interaction overlay (transparent, captures clicks for drawing) */}
               <div
@@ -309,7 +439,9 @@ export default function MapCanvas({
               />
 
               {/* Pins layer (rendered AFTER overlay so it sits on top and receives clicks first) */}
-              {pins.map((p) => {
+              {pins
+                .filter((p) => !pinColorFilter || !pinColorFilter.has(p.color || "#D97706"))
+                .map((p) => {
                 const Icon = getPinIcon(p.icon);
                 return (
                   <PinButton
@@ -410,8 +542,195 @@ export default function MapCanvas({
           {Math.round(scale * 100)}%
         </button>
       </div>
+
+      {/* Hidden file input for asset import */}
+      <input
+        ref={assetFileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        data-testid="asset-file-input"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          const pos = pendingAssetPosRef.current;
+          e.target.value = "";
+          if (!f || !pos) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result;
+            const img = new Image();
+            img.onload = () => {
+              const maxW = 240;
+              const aspect = img.naturalHeight / img.naturalWidth || 1;
+              const w = Math.min(maxW, img.naturalWidth);
+              const h = w * aspect;
+              onPushHistory();
+              setShapes((prev) => [
+                ...prev,
+                {
+                  id: rid(),
+                  type: "asset",
+                  layerId: activeLayerId,
+                  src: dataUrl,
+                  x: pos.x - w / 2,
+                  y: pos.y - h / 2,
+                  w,
+                  h,
+                },
+              ]);
+              pendingAssetPosRef.current = null;
+            };
+            img.src = dataUrl;
+          };
+          reader.readAsDataURL(f);
+        }}
+      />
     </div>
   );
+}
+
+function GridPreview({ s }) {
+  const x = Math.min(s.x, s.x + s.w);
+  const y = Math.min(s.y, s.y + s.h);
+  const w = Math.abs(s.w);
+  const h = Math.abs(s.h);
+  return (
+    <rect
+      x={x}
+      y={y}
+      width={w}
+      height={h}
+      fill="rgba(217,119,6,0.05)"
+      stroke="#D97706"
+      strokeWidth={s.size || 2}
+      strokeDasharray="8 6"
+    />
+  );
+}
+
+// Draggable HTML element rendering for assets, tokens, and grids
+function MoveableShape({ shape, W, H, tool, onDragEnd, onClick }) {
+  const ref = useRef(null);
+  const dragRef = useRef(null);
+
+  const onPointerDown = (e) => {
+    e.stopPropagation();
+    const target = ref.current?.closest("[data-canvas-content]");
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    dragRef.current = {
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startMapX: shape.x,
+      startMapY: shape.y,
+      rectW: rect.width,
+      rectH: rect.height,
+      moved: false,
+    };
+    e.target.setPointerCapture?.(e.pointerId);
+  };
+
+  const onPointerMove = (e) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = ((e.clientX - d.startClientX) / d.rectW) * W;
+    const dy = ((e.clientY - d.startClientY) / d.rectH) * H;
+    if (!d.moved && Math.abs(dx) + Math.abs(dy) > 4) d.moved = true;
+    if (d.moved && ref.current) {
+      ref.current.style.left = `${d.startMapX + dx}px`;
+      ref.current.style.top = `${d.startMapY + dy}px`;
+      d.lastX = d.startMapX + dx;
+      d.lastY = d.startMapY + dy;
+    }
+  };
+
+  const onPointerUp = (e) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d) return;
+    if (d.moved && d.lastX != null) {
+      onDragEnd(d.lastX, d.lastY);
+    } else {
+      onClick(e);
+    }
+  };
+
+  const baseStyle = {
+    left: shape.x,
+    top: shape.y,
+    width: shape.w || shape.size,
+    height: shape.h || shape.size,
+    cursor: tool === "erase" ? "not-allowed" : "grab",
+  };
+
+  if (shape.type === "token") {
+    const sz = shape.size || 40;
+    return (
+      <div
+        ref={ref}
+        data-testid={`token-${shape.id}`}
+        className="editable-overlay absolute z-[5] select-none"
+        style={{
+          left: shape.x - sz / 2,
+          top: shape.y - sz / 2,
+          width: sz,
+          height: sz,
+          cursor: tool === "erase" ? "not-allowed" : "grab",
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
+        <div
+          className="w-full h-full rounded-full ring-2 ring-black shadow-2xl"
+          style={{ backgroundColor: shape.color || "#EF4444" }}
+        />
+      </div>
+    );
+  }
+
+  if (shape.type === "asset") {
+    return (
+      <div
+        ref={ref}
+        data-testid={`asset-${shape.id}`}
+        className="editable-overlay absolute z-[5] select-none rounded-lg overflow-hidden ring-1 ring-black/30 shadow-xl"
+        style={baseStyle}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
+        <img
+          src={shape.src}
+          alt="asset"
+          className="w-full h-full object-cover pointer-events-none select-none"
+          draggable={false}
+        />
+      </div>
+    );
+  }
+
+  if (shape.type === "grid") {
+    const cell = shape.cellSize || 40;
+    return (
+      <div
+        ref={ref}
+        data-testid={`grid-${shape.id}`}
+        className="editable-overlay absolute z-[3] select-none"
+        style={{
+          ...baseStyle,
+          backgroundImage: `linear-gradient(${shape.color || "#D97706"}88 1px, transparent 1px), linear-gradient(90deg, ${shape.color || "#D97706"}88 1px, transparent 1px)`,
+          backgroundSize: `${cell}px ${cell}px`,
+          border: `1px solid ${shape.color || "#D97706"}66`,
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      />
+    );
+  }
+
+  return null;
 }
 
 function ShapeEl({ s, preview }) {
@@ -551,6 +870,9 @@ function hitTest(s, p) {
 function cursorFor(tool) {
   if (tool === "pan") return "grab";
   if (tool === "pin") return "copy";
+  if (tool === "token") return "copy";
+  if (tool === "asset") return "copy";
+  if (tool === "soft-erase") return "cell";
   if (tool === "erase") return "not-allowed";
   if (tool === "text") return "text";
   return "crosshair";

@@ -10,6 +10,10 @@ import {
   Eraser,
   Undo2,
   Redo2,
+  Trash2,
+  Grid3x3,
+  ImagePlus,
+  Swords,
 } from "lucide-react";
 
 const TOOLS = [
@@ -20,8 +24,12 @@ const TOOLS = [
   { id: "polygon", icon: Spline, label: "Polygon" },
   { id: "text", icon: Type, label: "Text" },
   { id: "pin", icon: MapPin, label: "Pin" },
+  { id: "token", icon: Swords, label: "Enemy Token" },
+  { id: "asset", icon: ImagePlus, label: "Import Asset" },
+  { id: "grid", icon: Grid3x3, label: "Grid" },
   { id: "ai-redraw", icon: Sparkles, label: "AI Redraw" },
-  { id: "erase", icon: Eraser, label: "Erase Shape" },
+  { id: "soft-erase", icon: Eraser, label: "Soft Eraser" },
+  { id: "erase", icon: Trash2, label: "Delete Shape" },
 ];
 
 export default function ToolDock({
@@ -35,7 +43,7 @@ export default function ToolDock({
   return (
     <div
       data-testid="tool-dock"
-      className="absolute left-4 top-1/2 -translate-y-1/2 z-30 glass rounded-2xl p-2 flex flex-col gap-1"
+      className="absolute left-4 top-1/2 -translate-y-1/2 z-30 glass rounded-2xl p-2 flex flex-col gap-1 max-h-[88vh] overflow-y-auto"
     >
       {TOOLS.map((t) => {
         const Icon = t.icon;
@@ -47,7 +55,7 @@ export default function ToolDock({
             data-testid={`tool-${t.id}`}
             onClick={() => setTool(t.id)}
             title={t.label}
-            className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+            className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0 ${
               active
                 ? ai
                   ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30"
@@ -67,7 +75,7 @@ export default function ToolDock({
         onClick={onUndo}
         disabled={!canUndo}
         title="Undo"
-        className="w-10 h-10 rounded-xl flex items-center justify-center text-stone-400 hover:bg-white/5 hover:text-stone-100 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+        className="w-10 h-10 rounded-xl flex items-center justify-center text-stone-400 hover:bg-white/5 hover:text-stone-100 disabled:opacity-30 disabled:hover:bg-transparent transition-all shrink-0"
       >
         <Undo2 className="w-4 h-4" strokeWidth={1.6} />
       </button>
@@ -76,7 +84,7 @@ export default function ToolDock({
         onClick={onRedo}
         disabled={!canRedo}
         title="Redo"
-        className="w-10 h-10 rounded-xl flex items-center justify-center text-stone-400 hover:bg-white/5 hover:text-stone-100 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+        className="w-10 h-10 rounded-xl flex items-center justify-center text-stone-400 hover:bg-white/5 hover:text-stone-100 disabled:opacity-30 disabled:hover:bg-transparent transition-all shrink-0"
       >
         <Redo2 className="w-4 h-4" strokeWidth={1.6} />
       </button>

@@ -23,18 +23,31 @@ export async function exportMapAsPng(mapDoc, shapes, pins, layers, campaignName)
 
   const visibleLayerIds = new Set(layers.filter((l) => l.visible).map((l) => l.id));
 
-  // Image shapes (AI generated images) first to keep them under drawings
+  // Image shapes (AI generated images) + assets first to keep them under drawings
   const imageShapes = shapes.filter(
-    (s) => s.type === "image" && visibleLayerIds.has(s.layerId),
+    (s) => (s.type === "image" || s.type === "asset") && visibleLayerIds.has(s.layerId),
   );
   for (const s of imageShapes) {
     const im = await loadImage(s.src);
     ctx.drawImage(im, s.x, s.y, s.w, s.h);
   }
 
+  // Grids
+  const gridShapes = shapes.filter(
+    (s) => s.type === "grid" && visibleLayerIds.has(s.layerId),
+  );
+  for (const s of gridShapes) {
+    drawGrid(ctx, s);
+  }
+
   // Vector shapes via SVG (single batch for performance)
   const visibleVector = shapes.filter(
-    (s) => s.type !== "image" && visibleLayerIds.has(s.layerId),
+    (s) =>
+      s.type !== "image" &&
+      s.type !== "asset" &&
+      s.type !== "grid" &&
+      s.type !== "token" &&
+      visibleLayerIds.has(s.layerId),
   );
   if (visibleVector.length) {
     const svgString = buildSvg(visibleVector, W, H);
@@ -43,6 +56,12 @@ export async function exportMapAsPng(mapDoc, shapes, pins, layers, campaignName)
     );
     ctx.drawImage(svgImg, 0, 0, W, H);
   }
+
+  // Tokens (drawn on top of vectors)
+  const tokens = shapes.filter(
+    (s) => s.type === "token" && visibleLayerIds.has(s.layerId),
+  );
+  for (const t of tokens) drawToken(ctx, t);
 
   // Pins (rasterized so colors + icons render)
   for (const p of pins) {
@@ -112,6 +131,37 @@ function escapeAttr(s) {
 
 function escapeText(s) {
   return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+function drawGrid(ctx, s) {
+  const cell = s.cellSize || 40;
+  ctx.save();
+  ctx.strokeStyle = (s.color || "#D97706") + "AA";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = s.x; x <= s.x + s.w; x += cell) {
+    ctx.moveTo(x, s.y);
+    ctx.lineTo(x, s.y + s.h);
+  }
+  for (let y = s.y; y <= s.y + s.h; y += cell) {
+    ctx.moveTo(s.x, y);
+    ctx.lineTo(s.x + s.w, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawToken(ctx, t) {
+  const sz = t.size || 40;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(t.x, t.y, sz / 2, 0, Math.PI * 2);
+  ctx.fillStyle = t.color || "#EF4444";
+  ctx.fill();
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = "#0B0A09";
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawPin(ctx, p) {
