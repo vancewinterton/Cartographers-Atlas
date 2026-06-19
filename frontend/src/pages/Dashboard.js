@@ -5,6 +5,7 @@ import { Button } from "../components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -110,6 +111,9 @@ export default function Dashboard() {
                 <DialogTitle className="font-display text-3xl">
                   New Campaign
                 </DialogTitle>
+                <DialogDescription className="text-stone-500 text-sm">
+                  Begin a new world. You can import a base map later.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 pt-2">
                 <div>

@@ -288,21 +288,43 @@ export default function MapCanvas({
                 )}
               </svg>
 
-              {/* Pins layer */}
+              {/* Interaction overlay (transparent, captures clicks for drawing) */}
+              <div
+                ref={overlayRef}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerLeave={onPointerUp}
+                onDoubleClick={() => polygonPts && finishPolygon()}
+                className={`absolute inset-0 ${interactionEnabled ? "editable-overlay" : ""}`}
+                style={{
+                  cursor: cursorFor(tool),
+                  pointerEvents: interactionEnabled ? "auto" : "none",
+                }}
+                data-testid="canvas-overlay"
+              />
+
+              {/* Pins layer (rendered AFTER overlay so it sits on top and receives clicks first) */}
               {pins.map((p) => (
                 <button
                   key={p.id}
                   data-testid={`pin-${p.id}`}
-                  className="editable-overlay absolute pin-bounce"
+                  className="editable-overlay absolute pin-bounce z-10"
                   style={{
                     left: p.x,
                     top: p.y,
                     transform: `translate(-50%, -100%) scale(${1 / Math.max(scale, 0.3)})`,
                     transformOrigin: "50% 100%",
                   }}
+                  onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onPinClick(p);
+                    if (tool === "erase") {
+                      onPushHistory();
+                      setPins(pins.filter((pn) => pn.id !== p.id));
+                    } else {
+                      onPinClick(p);
+                    }
                   }}
                 >
                   <div className="relative">
@@ -323,12 +345,12 @@ export default function MapCanvas({
                 </button>
               ))}
 
-              {/* Text input overlay */}
+              {/* Text input overlay (also on top of canvas-overlay) */}
               {textInput && (
                 <input
                   autoFocus
                   data-testid="text-tool-input"
-                  className="editable-overlay absolute bg-black/70 border border-amber-600/40 text-stone-100 px-2 py-1 rounded outline-none"
+                  className="editable-overlay absolute bg-black/70 border border-amber-600/40 text-stone-100 px-2 py-1 rounded outline-none z-10"
                   style={{
                     left: textInput.x,
                     top: textInput.y,
@@ -343,22 +365,6 @@ export default function MapCanvas({
                   placeholder="Label…"
                 />
               )}
-
-              {/* Interaction overlay (transparent, captures clicks for drawing) */}
-              <div
-                ref={overlayRef}
-                onPointerDown={onPointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                onPointerLeave={onPointerUp}
-                onDoubleClick={() => polygonPts && finishPolygon()}
-                className={`absolute inset-0 ${interactionEnabled ? "editable-overlay" : ""}`}
-                style={{
-                  cursor: cursorFor(tool),
-                  pointerEvents: interactionEnabled ? "auto" : "none",
-                }}
-                data-testid="canvas-overlay"
-              />
             </div>
           </TransformComponent>
         )}

@@ -169,6 +169,7 @@ export default function Editor() {
   const updatePin = (pinId, patch) => {
     pushHistory();
     setPins((ps) => ps.map((p) => (p.id === pinId ? { ...p, ...patch } : p)));
+    setSelectedPin((sp) => (sp && sp.id === pinId ? { ...sp, ...patch } : sp));
   };
 
   const deletePin = (pinId) => {

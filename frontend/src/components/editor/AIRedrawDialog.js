@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -102,6 +103,9 @@ export default function AIRedrawDialog({ region, mapDoc, onClose, onComplete }) 
             <Sparkles className="w-5 h-5 text-emerald-400" />
             AI Redraw Region
           </DialogTitle>
+          <DialogDescription className="text-stone-500 text-sm">
+            Describe what should appear in the selected area.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
