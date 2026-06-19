@@ -13,7 +13,8 @@ import {
 } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
-import { Compass, Plus, Trash2, MapPinned, Sparkles } from "lucide-react";
+import { Compass, Plus, Trash2, MapPinned, Sparkles, BookOpen } from "lucide-react";
+import TutorialDialog from "../components/editor/TutorialDialog";
 import { toast } from "sonner";
 
 export default function Dashboard() {
@@ -97,15 +98,18 @@ export default function Dashboard() {
           </div>
 
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button
-                data-testid="new-campaign-btn"
-                className="bg-amber-600 hover:bg-amber-500 text-stone-950 font-medium px-6 py-6 rounded-full"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                New Campaign
-              </Button>
-            </DialogTrigger>
+            <div className="flex items-center gap-3">
+              <TutorialDialog />
+              <DialogTrigger asChild>
+                <Button
+                  data-testid="new-campaign-btn"
+                  className="bg-amber-600 hover:bg-amber-500 text-stone-950 font-medium px-6 py-6 rounded-full"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Campaign
+                </Button>
+              </DialogTrigger>
+            </div>
             <DialogContent className="bg-[#1E1B18] border-white/10">
               <DialogHeader>
                 <DialogTitle className="font-display text-3xl">

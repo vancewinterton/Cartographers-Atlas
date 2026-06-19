@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Sheet,
   SheetContent,
@@ -135,6 +135,52 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onClose })
               <Field
                 label={
                   <span>
+                    Scale{" "}
+                    <span className="text-stone-500 font-mono-cart">
+                      W & H equally
+                    </span>
+                  </span>
+                }
+              >
+                <div className="flex items-center gap-2">
+                  <Button
+                    data-testid="shape-scale-down"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => patch({ w: (local.w || 100) * 0.8, h: (local.h || 100) * 0.8 })}
+                    className="text-stone-300 hover:bg-white/5"
+                  >
+                    −20%
+                  </Button>
+                  <Slider
+                    data-testid="shape-scale"
+                    min={50}
+                    max={3000}
+                    step={4}
+                    value={[Math.max(local.w || 100, local.h || 100)]}
+                    onValueChange={(v) => {
+                      const target = v[0];
+                      const cur = Math.max(local.w || 100, local.h || 100);
+                      const ratio = target / cur;
+                      patch({ w: (local.w || 100) * ratio, h: (local.h || 100) * ratio });
+                    }}
+                    className="flex-1"
+                  />
+                  <Button
+                    data-testid="shape-scale-up"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => patch({ w: (local.w || 100) * 1.25, h: (local.h || 100) * 1.25 })}
+                    className="text-stone-300 hover:bg-white/5"
+                  >
+                    +25%
+                  </Button>
+                </div>
+              </Field>
+
+              <Field
+                label={
+                  <span>
                     Width <span className="text-stone-500 font-mono-cart">{Math.round(local.w)}px</span>
                   </span>
                 }
@@ -142,7 +188,7 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onClose })
                 <Slider
                   data-testid="shape-width"
                   min={20}
-                  max={2000}
+                  max={3000}
                   step={4}
                   value={[local.w || 100]}
                   onValueChange={(v) => patch({ w: v[0] })}
@@ -158,13 +204,22 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onClose })
                 <Slider
                   data-testid="shape-height"
                   min={20}
-                  max={2000}
+                  max={3000}
                   step={4}
                   value={[local.h || 100]}
                   onValueChange={(v) => patch({ h: v[0] })}
                 />
               </Field>
             </>
+          )}
+
+          {isAsset && (
+            <Field label="Crop">
+              <CropControls
+                shape={local}
+                onChange={(cropRect) => patch({ cropRect })}
+              />
+            </Field>
           )}
 
           {isGrid && (
@@ -231,6 +286,124 @@ function Field({ label, children }) {
         {label}
       </Label>
       {children}
+    </div>
+  );
+}
+
+// Crop controls — drag a rectangle on the original image to set cropRect (normalized 0..1).
+function CropControls({ shape, onChange }) {
+  const [editing, setEditing] = useState(false);
+  const containerRef = useState(null);
+  const crop = shape.cropRect || { x: 0, y: 0, w: 1, h: 1 };
+  const dragRef = useState({ current: null });
+
+  if (!editing) {
+    const isCropped = crop.x !== 0 || crop.y !== 0 || crop.w !== 1 || crop.h !== 1;
+    return (
+      <div className="flex items-center gap-2">
+        <Button
+          data-testid="asset-crop-open"
+          variant="ghost"
+          size="sm"
+          onClick={() => setEditing(true)}
+          className="bg-black/30 border border-white/10 hover:bg-white/5 text-stone-200"
+        >
+          {isCropped ? "Edit crop" : "Crop image…"}
+        </Button>
+        {isCropped && (
+          <Button
+            data-testid="asset-crop-reset"
+            variant="ghost"
+            size="sm"
+            onClick={() => onChange({ x: 0, y: 0, w: 1, h: 1 })}
+            className="text-stone-400 hover:bg-white/5"
+          >
+            Reset
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <CropEditor
+      src={shape.src}
+      initialCrop={crop}
+      onApply={(c) => {
+        onChange(c);
+        setEditing(false);
+      }}
+      onCancel={() => setEditing(false)}
+    />
+  );
+}
+
+function CropEditor({ src, initialCrop, onApply, onCancel }) {
+  const wrapRef = useState(null);
+  const [c, setC] = useState(initialCrop);
+  const stateRef = useState({ current: null });
+
+  const onMouseDown = (e) => {
+    const target = e.currentTarget.getBoundingClientRect();
+    const startX = (e.clientX - target.left) / target.width;
+    const startY = (e.clientY - target.top) / target.height;
+    const onMove = (ev) => {
+      const nx = Math.min(1, Math.max(0, (ev.clientX - target.left) / target.width));
+      const ny = Math.min(1, Math.max(0, (ev.clientY - target.top) / target.height));
+      setC({
+        x: Math.min(startX, nx),
+        y: Math.min(startY, ny),
+        w: Math.abs(nx - startX),
+        h: Math.abs(ny - startY),
+      });
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div
+        className="relative w-full rounded-lg overflow-hidden bg-black/40 border border-white/10 cursor-crosshair select-none"
+        onMouseDown={onMouseDown}
+        data-testid="crop-editor"
+      >
+        <img src={src} alt="crop-source" className="w-full block pointer-events-none" draggable={false} />
+        <div
+          className="absolute border-2 border-amber-500 bg-amber-500/10 pointer-events-none"
+          style={{
+            left: `${c.x * 100}%`,
+            top: `${c.y * 100}%`,
+            width: `${c.w * 100}%`,
+            height: `${c.h * 100}%`,
+          }}
+        />
+      </div>
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onCancel}
+          className="text-stone-400 hover:bg-white/5"
+          data-testid="crop-cancel"
+        >
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          onClick={() =>
+            onApply(c.w < 0.02 || c.h < 0.02 ? { x: 0, y: 0, w: 1, h: 1 } : c)
+          }
+          className="bg-amber-600 hover:bg-amber-500 text-stone-950"
+          data-testid="crop-apply"
+        >
+          Apply crop
+        </Button>
+      </div>
     </div>
   );
 }

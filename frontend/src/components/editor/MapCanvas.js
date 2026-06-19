@@ -163,19 +163,15 @@ export default function MapCanvas({
     }
 
     if (tool === "erase") {
-      // Find shape under cursor (simple: topmost shape whose bbox contains point)
+      // Find shape under cursor (works on drag too)
+      onPushHistory();
       const hit = [...shapes].reverse().find((s) => hitTest(s, p));
-      if (hit) {
-        onPushHistory();
-        setShapes(shapes.filter((s) => s.id !== hit.id));
-      } else {
-        // try pins
+      if (hit) setShapes(shapes.filter((s) => s.id !== hit.id));
+      else {
         const pHit = [...pins].reverse().find((pn) => Math.hypot(pn.x - p.x, pn.y - p.y) < 20);
-        if (pHit) {
-          onPushHistory();
-          setPins(pins.filter((pn) => pn.id !== pHit.id));
-        }
+        if (pHit) setPins(pins.filter((pn) => pn.id !== pHit.id));
       }
+      setDrawing({ type: "erase-drag", x: p.x, y: p.y });
       return;
     }
 
@@ -236,7 +232,7 @@ export default function MapCanvas({
       setDrawing(null);
       return;
     }
-    if (drawing.type === "soft-erase") {
+    if (drawing.type === "soft-erase" || drawing.type === "erase-drag") {
       setDrawing(null);
       softErasePushedRef.current = false;
       return;
@@ -735,12 +731,17 @@ function MoveableShape({ shape, W, H, tool, readOnly, onDragEnd, onClick }) {
         onPointerUp={onPointerUp}
       >
         <div
-          className="w-full h-full rounded-full ring-2 ring-black shadow-2xl flex items-center justify-center"
+          className="w-full h-full rounded-full ring-2 ring-black shadow-2xl flex items-center justify-center overflow-hidden"
           style={{ backgroundColor: shape.color || "#EF4444" }}
         >
-          {shape.ac != null && sz >= 22 ? (
-            <span className="text-[10px] font-bold text-stone-950" style={{ fontSize: Math.max(8, sz / 4) }}>
-              {shape.ac}
+          {shape.label && sz >= 16 ? (
+            <span
+              className="font-bold text-stone-950 leading-none select-none"
+              style={{
+                fontSize: Math.max(7, Math.min(sz * 0.45, sz - 4)),
+              }}
+            >
+              {shape.label.slice(0, sz >= 36 ? 4 : sz >= 24 ? 2 : 1).toUpperCase()}
             </span>
           ) : null}
         </div>
@@ -771,23 +772,30 @@ function MoveableShape({ shape, W, H, tool, readOnly, onDragEnd, onClick }) {
   }
 
   if (shape.type === "asset") {
+    const crop = shape.cropRect || { x: 0, y: 0, w: 1, h: 1 };
+    const w = shape.w;
+    const h = shape.h;
+    // Scale background to show only the cropped region
+    const bgW = w / Math.max(0.01, crop.w);
+    const bgH = h / Math.max(0.01, crop.h);
+    const bgX = -crop.x * bgW;
+    const bgY = -crop.y * bgH;
     return (
       <div
         ref={ref}
         data-testid={`asset-${shape.id}`}
         className="editable-overlay absolute z-[5] select-none rounded-lg overflow-hidden ring-1 ring-black/30 shadow-xl"
-        style={baseStyle}
+        style={{
+          ...baseStyle,
+          backgroundImage: `url(${shape.src})`,
+          backgroundSize: `${bgW}px ${bgH}px`,
+          backgroundPosition: `${bgX}px ${bgY}px`,
+          backgroundRepeat: "no-repeat",
+        }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-      >
-        <img
-          src={shape.src}
-          alt="asset"
-          className="w-full h-full object-cover pointer-events-none select-none"
-          draggable={false}
-        />
-      </div>
+      />
     );
   }
 
