@@ -15,8 +15,21 @@ import {
   Map as MapIcon,
   ChevronDown,
   Download,
+  Share2,
+  Copy,
+  Check,
 } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import {
+  Dialog as ShareDialog,
+  DialogContent as ShareDialogContent,
+  DialogDescription as ShareDialogDescription,
+  DialogHeader as ShareDialogHeader,
+  DialogTitle as ShareDialogTitle,
+} from "../ui/dialog";
+import { Switch } from "../ui/switch";
+import { Campaigns } from "../../lib/api";
+import { toast } from "sonner";
 
 export default function TopBar({
   campaign,
@@ -27,8 +40,41 @@ export default function TopBar({
   onImport,
   onSwitchMap,
   onExport,
+  onShareToken,
 }) {
   const fileRef = useRef(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareToken, setShareToken] = useState(campaign.share_token || null);
+  const [copied, setCopied] = useState(false);
+  const shareUrl = shareToken ? `${window.location.origin}/share/${shareToken}` : "";
+
+  const toggleShare = async (enabled) => {
+    try {
+      if (enabled) {
+        const res = await Campaigns.enableShare(campaign.id);
+        setShareToken(res.share_token);
+        onShareToken?.(res.share_token);
+        toast.success("Share link created");
+      } else {
+        await Campaigns.disableShare(campaign.id);
+        setShareToken(null);
+        onShareToken?.(null);
+        toast.success("Sharing disabled");
+      }
+    } catch (e) {
+      toast.error("Could not change share state");
+    }
+  };
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error("Couldn't copy");
+    }
+  };
 
   return (
     <div
@@ -116,6 +162,15 @@ export default function TopBar({
           <Download className="w-4 h-4 mr-2" />
           Export PNG
         </Button>
+        <Button
+          data-testid="share-btn"
+          variant="ghost"
+          onClick={() => setShareOpen(true)}
+          className="text-stone-300 hover:bg-white/5 hover:text-amber-500 h-9"
+        >
+          <Share2 className="w-4 h-4 mr-2" />
+          Share
+        </Button>
         <div className="h-5 w-px bg-white/10 mx-1" />
         <Button
           data-testid="save-map-btn"
@@ -126,6 +181,70 @@ export default function TopBar({
           Save
         </Button>
       </div>
+
+      <ShareDialog open={shareOpen} onOpenChange={setShareOpen}>
+        <ShareDialogContent
+          data-testid="share-dialog"
+          className="bg-[#1E1B18] border-white/10 pointer-events-auto"
+        >
+          <ShareDialogHeader>
+            <ShareDialogTitle className="font-display text-3xl flex items-center gap-2">
+              <Share2 className="w-5 h-5 text-amber-500" />
+              Share with your players
+            </ShareDialogTitle>
+            <ShareDialogDescription className="text-stone-400">
+              A read-only link your party can open in any browser. They can pan, zoom,
+              click pins and navigate sub-maps — but they can&apos;t edit anything.
+            </ShareDialogDescription>
+          </ShareDialogHeader>
+          <div className="mt-4 space-y-4">
+            <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/30 px-4 py-3">
+              <div>
+                <div className="text-sm font-medium text-stone-100">
+                  Enable share link
+                </div>
+                <div className="text-[10px] text-stone-500 font-mono-cart uppercase tracking-wider mt-0.5">
+                  Anyone with the link can view this campaign
+                </div>
+              </div>
+              <Switch
+                checked={!!shareToken}
+                onCheckedChange={toggleShare}
+                data-testid="share-toggle"
+              />
+            </label>
+            {shareToken && (
+              <div
+                data-testid="share-link-row"
+                className="flex items-center gap-2 rounded-xl bg-black/40 border border-amber-700/30 px-3 py-2"
+              >
+                <Input
+                  readOnly
+                  value={shareUrl}
+                  data-testid="share-url-input"
+                  className="bg-transparent border-0 focus-visible:ring-0 px-0 text-amber-500 font-mono-cart text-xs"
+                />
+                <Button
+                  data-testid="copy-share-link"
+                  size="sm"
+                  onClick={copyLink}
+                  className="bg-amber-600 hover:bg-amber-500 text-stone-950 shrink-0"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 mr-1" /> Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 mr-1" /> Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        </ShareDialogContent>
+      </ShareDialog>
     </div>
   );
 }

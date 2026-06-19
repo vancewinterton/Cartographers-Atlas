@@ -8,6 +8,7 @@ import MapCanvas from "../components/editor/MapCanvas";
 import AIRedrawDialog from "../components/editor/AIRedrawDialog";
 import NestedMapSheet from "../components/editor/NestedMapSheet";
 import { exportMapAsPng } from "../lib/exportMap";
+import ShapeEditPopover from "../components/editor/ShapeEditPopover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,6 +48,7 @@ export default function Editor() {
   const [nestedSheetOpen, setNestedSheetOpen] = useState(false);
   const [pinColorFilter, setPinColorFilter] = useState(new Set());
   const [pendingDeletePin, setPendingDeletePin] = useState(null);
+  const [editingShape, setEditingShape] = useState(null);
 
   const undoStack = useRef([]);
   const redoStack = useRef([]);
@@ -158,6 +160,31 @@ export default function Editor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shapes, pins, layers]);
 
+  // Keyboard shortcuts: Ctrl/Cmd+Z = undo, Ctrl/Cmd+Shift+Z = redo
+  useEffect(() => {
+    const onKey = (e) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const k = e.key.toLowerCase();
+      const target = e.target;
+      const isEditable =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+      if (isEditable) return;
+      if (k === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((k === "z" && e.shiftKey) || k === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   const onImportImage = async (file) => {
     if (!file || !mapDoc) return;
     const dataUrl = await fileToDataURL(file);
@@ -249,6 +276,7 @@ export default function Editor() {
         onPinClick={openPinSheet}
         onAIRegionSelected={setAiRegion}
         pinColorFilter={pinColorFilter}
+        onShapeClick={(s) => setEditingShape(s)}
       />
 
       <TopBar
@@ -370,6 +398,24 @@ export default function Editor() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {editingShape && (
+        <ShapeEditPopover
+          shape={editingShape}
+          onClose={() => setEditingShape(null)}
+          onUpdate={(patch) => {
+            setShapes((arr) =>
+              arr.map((s) => (s.id === editingShape.id ? { ...s, ...patch } : s)),
+            );
+            setEditingShape((cur) => (cur ? { ...cur, ...patch } : cur));
+          }}
+          onDelete={() => {
+            pushHistory();
+            setShapes((arr) => arr.filter((s) => s.id !== editingShape.id));
+            setEditingShape(null);
+          }}
+        />
+      )}
     </div>
   );
 }

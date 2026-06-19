@@ -13,6 +13,12 @@ export const Campaigns = {
   remove: (id) => api.delete(`/campaigns/${id}`).then((r) => r.data),
   rootMap: (id) => api.get(`/campaigns/${id}/root_map`).then((r) => r.data),
   maps: (id) => api.get(`/campaigns/${id}/maps`).then((r) => r.data),
+  enableShare: (id) => api.post(`/campaigns/${id}/share`).then((r) => r.data),
+  disableShare: (id) => api.delete(`/campaigns/${id}/share`).then((r) => r.data),
+};
+
+export const Share = {
+  get: (token) => api.get(`/share/${token}`).then((r) => r.data),
 };
 
 export const Maps = {

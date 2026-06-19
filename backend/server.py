@@ -35,6 +35,7 @@ class Campaign(BaseModel):
     name: str
     description: str = ""
     cover_image: Optional[str] = None  # base64 data URL or remote URL
+    share_token: Optional[str] = None  # set when sharing is enabled
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
@@ -152,6 +153,36 @@ async def delete_campaign(campaign_id: str):
     await db.campaigns.delete_one({"id": campaign_id})
     await db.maps.delete_many({"campaign_id": campaign_id})
     return {"ok": True}
+
+
+@api_router.post("/campaigns/{campaign_id}/share")
+async def enable_share(campaign_id: str):
+    doc = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Campaign not found")
+    token = doc.get("share_token") or uuid.uuid4().hex
+    await db.campaigns.update_one(
+        {"id": campaign_id}, {"$set": {"share_token": token, "updated_at": now_iso()}}
+    )
+    return {"share_token": token}
+
+
+@api_router.delete("/campaigns/{campaign_id}/share")
+async def disable_share(campaign_id: str):
+    await db.campaigns.update_one(
+        {"id": campaign_id}, {"$set": {"share_token": None, "updated_at": now_iso()}}
+    )
+    return {"ok": True}
+
+
+@api_router.get("/share/{share_token}")
+async def get_shared_campaign(share_token: str):
+    """Public read-only endpoint — returns the campaign + all of its maps."""
+    doc = await db.campaigns.find_one({"share_token": share_token}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Shared campaign not found or sharing disabled")
+    maps = await db.maps.find({"campaign_id": doc["id"]}, {"_id": 0}).to_list(500)
+    return {"campaign": Campaign(**doc), "maps": [MapDoc(**m) for m in maps]}
 
 
 # ---------- Map Routes ----------

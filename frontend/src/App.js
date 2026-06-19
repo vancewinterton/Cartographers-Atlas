@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
+import SharePage from "./pages/Share";
 import { Toaster } from "./components/ui/sonner";
 import "./App.css";
 
@@ -12,6 +13,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/campaign/:campaignId" element={<Editor />} />
           <Route path="/campaign/:campaignId/map/:mapId" element={<Editor />} />
+          <Route path="/share/:token" element={<SharePage />} />
         </Routes>
       </BrowserRouter>
       <Toaster theme="dark" position="bottom-right" />

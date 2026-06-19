@@ -19,6 +19,8 @@ export default function MapCanvas({
   onPinClick,
   onAIRegionSelected,
   pinColorFilter,
+  onShapeClick,
+  readOnly,
 }) {
   const W = mapDoc.image_width || 1600;
   const H = mapDoc.image_height || 1000;
@@ -47,9 +49,47 @@ export default function MapCanvas({
 
   // ---------- Drawing handlers ----------
   const onPointerDown = (e) => {
+    // Middle-mouse pan: always allowed regardless of current tool
+    if (e.button === 1) {
+      e.preventDefault();
+      const wrapEl = e.currentTarget.closest(".react-transform-wrapper");
+      const startX = e.clientX;
+      const startY = e.clientY;
+      // Snapshot current transform from the live DOM matrix to avoid library internal APIs
+      const contentEl = wrapEl?.querySelector(".react-transform-component");
+      const startMatrix = contentEl ? new DOMMatrix(getComputedStyle(contentEl).transform) : null;
+      const startTX = startMatrix?.e || 0;
+      const startTY = startMatrix?.f || 0;
+      const onMove = (ev) => {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (contentEl) {
+          contentEl.style.transform = `matrix(${startMatrix.a}, 0, 0, ${startMatrix.d}, ${startTX + dx}, ${startTY + dy})`;
+        }
+      };
+      const onUp = (ev) => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        // Sync the library's internal position to the new translation we set manually
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (transformRef.current && (dx || dy)) {
+          const s = scale;
+          // Use library's setTransform to commit position so it remembers
+          // transformRef.current.state may not be available — best-effort
+          const curScale = transformRef.current?.state?.scale ?? s;
+          const curX = (transformRef.current?.state?.positionX ?? startTX) + dx;
+          const curY = (transformRef.current?.state?.positionY ?? startTY) + dy;
+          transformRef.current.setTransform(curX, curY, curScale, 0);
+        }
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      return;
+    }
     if (isPanTool) return;
-    // Allow pan with middle/right mouse anytime
     if (e.button !== 0) return;
+    e.target.setPointerCapture?.(e.pointerId);
     const p = getMapCoords(e);
     if (!p) return;
 
@@ -73,7 +113,7 @@ export default function MapCanvas({
 
     if (tool === "token") {
       onPushHistory();
-      const sz = Math.max(20, brushSize * 6);
+      const sz = Math.max(4, brushSize * 4);
       setShapes([
         ...shapes,
         {
@@ -85,6 +125,9 @@ export default function MapCanvas({
           x: p.x,
           y: p.y,
           label: "",
+          hp: null,
+          hpMax: null,
+          ac: null,
         },
       ]);
       return;
@@ -392,6 +435,7 @@ export default function MapCanvas({
                     W={W}
                     H={H}
                     tool={tool}
+                    readOnly={readOnly}
                     onDragEnd={(nx, ny) => {
                       onPushHistory();
                       setShapes(
@@ -401,9 +445,12 @@ export default function MapCanvas({
                       );
                     }}
                     onClick={() => {
+                      if (readOnly) return;
                       if (tool === "erase") {
                         onPushHistory();
                         setShapes(shapes.filter((sh) => sh.id !== s.id));
+                      } else {
+                        onShapeClick?.(s);
                       }
                     }}
                   />
@@ -428,7 +475,7 @@ export default function MapCanvas({
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
-                onPointerLeave={onPointerUp}
+                onPointerCancel={onPointerUp}
                 onDoubleClick={() => polygonPts && finishPolygon()}
                 className={`absolute inset-0 ${interactionEnabled ? "editable-overlay" : ""}`}
                 style={{
@@ -609,11 +656,12 @@ function GridPreview({ s }) {
 }
 
 // Draggable HTML element rendering for assets, tokens, and grids
-function MoveableShape({ shape, W, H, tool, onDragEnd, onClick }) {
+function MoveableShape({ shape, W, H, tool, readOnly, onDragEnd, onClick }) {
   const ref = useRef(null);
   const dragRef = useRef(null);
 
   const onPointerDown = (e) => {
+    if (readOnly || e.button !== 0) return;
     e.stopPropagation();
     const target = ref.current?.closest("[data-canvas-content]");
     if (!target) return;
@@ -665,6 +713,11 @@ function MoveableShape({ shape, W, H, tool, onDragEnd, onClick }) {
 
   if (shape.type === "token") {
     const sz = shape.size || 40;
+    const hp = shape.hp;
+    const hpMax = shape.hpMax;
+    const hpRatio = hpMax > 0 ? Math.max(0, Math.min(1, hp / hpMax)) : null;
+    const showLabel = !!shape.label;
+    const showHP = hp != null && hpMax != null;
     return (
       <div
         ref={ref}
@@ -675,16 +728,44 @@ function MoveableShape({ shape, W, H, tool, onDragEnd, onClick }) {
           top: shape.y - sz / 2,
           width: sz,
           height: sz,
-          cursor: tool === "erase" ? "not-allowed" : "grab",
+          cursor: readOnly ? "default" : tool === "erase" ? "not-allowed" : "grab",
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
         <div
-          className="w-full h-full rounded-full ring-2 ring-black shadow-2xl"
+          className="w-full h-full rounded-full ring-2 ring-black shadow-2xl flex items-center justify-center"
           style={{ backgroundColor: shape.color || "#EF4444" }}
-        />
+        >
+          {shape.ac != null && sz >= 22 ? (
+            <span className="text-[10px] font-bold text-stone-950" style={{ fontSize: Math.max(8, sz / 4) }}>
+              {shape.ac}
+            </span>
+          ) : null}
+        </div>
+        {showHP && (
+          <div
+            className="absolute left-1/2 -translate-x-1/2 -top-1.5 h-1 rounded-full overflow-hidden bg-black/70"
+            style={{ width: Math.max(20, sz) }}
+          >
+            <div
+              className="h-full transition-all"
+              style={{
+                width: `${hpRatio * 100}%`,
+                backgroundColor: hpRatio > 0.5 ? "#10B981" : hpRatio > 0.25 ? "#F59E0B" : "#EF4444",
+              }}
+            />
+          </div>
+        )}
+        {showLabel && (
+          <div
+            className="absolute left-1/2 -translate-x-1/2 -bottom-5 whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium glass text-stone-100 pointer-events-none"
+            style={{ fontSize: Math.max(9, Math.min(13, sz / 4)) }}
+          >
+            {shape.label}
+          </div>
+        )}
       </div>
     );
   }
