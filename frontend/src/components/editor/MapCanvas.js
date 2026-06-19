@@ -230,16 +230,18 @@ export default function MapCanvas({
     <div className="absolute inset-0">
       <TransformWrapper
         ref={transformRef}
-        initialScale={0.7}
-        minScale={0.1}
-        maxScale={20}
+        initialScale={1}
+        minScale={0.15}
+        maxScale={8}
         centerOnInit
         limitToBounds={false}
-        wheel={{ step: 0.06, smoothStep: 0.005 }}
+        wheel={{ step: 0.0008, smoothStep: 0.0008, disabled: false }}
         pinch={{ step: 4 }}
         doubleClick={{ disabled: true }}
         panning={{ disabled: false, velocityDisabled: true, excluded: ["editable-overlay"] }}
-        onTransformed={(ref) => setScale(ref.state.scale)}
+        onZoom={(ref) => setScale(ref.state.scale)}
+        onZoomStop={(ref) => setScale(ref.state.scale)}
+        onInit={(ref) => setScale(ref.state.scale)}
       >
         {() => (
           <TransformComponent
@@ -364,29 +366,48 @@ export default function MapCanvas({
       </TransformWrapper>
 
       {/* Zoom controls */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 glass rounded-full px-2 py-1 z-30 flex items-center gap-1">
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 glass rounded-full px-3 py-2 z-30 flex items-center gap-3">
         <button
           data-testid="zoom-out-btn"
-          onClick={() => transformRef.current?.zoomOut(0.2, 200)}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-stone-400 hover:text-amber-500 hover:bg-white/5 transition"
+          onClick={() => transformRef.current?.zoomOut(0.15, 200)}
+          className="w-6 h-6 rounded-full flex items-center justify-center text-stone-400 hover:text-amber-500 hover:bg-white/5 transition text-base leading-none"
           aria-label="Zoom out"
         >
           −
         </button>
-        <button
-          data-testid="zoom-reset-btn"
-          onClick={() => transformRef.current?.resetTransform(300)}
-          className="font-mono-cart text-xs text-stone-400 hover:text-amber-500 px-3 py-1 rounded-full hover:bg-white/5 transition min-w-[64px]"
-        >
-          {Math.round(scale * 100)}%
-        </button>
+        <input
+          data-testid="zoom-slider"
+          type="range"
+          min={0}
+          max={1000}
+          value={scaleToSlider(scale)}
+          onChange={(e) => {
+            const nextScale = sliderToScale(parseInt(e.target.value, 10));
+            const ratio = nextScale / Math.max(scale, 0.001);
+            if (ratio > 1) {
+              transformRef.current?.zoomIn(ratio - 1, 0);
+            } else if (ratio < 1) {
+              transformRef.current?.zoomOut(1 - ratio, 0);
+            }
+          }}
+          className="zoom-slider w-44"
+          aria-label="Zoom"
+        />
         <button
           data-testid="zoom-in-btn"
-          onClick={() => transformRef.current?.zoomIn(0.2, 200)}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-stone-400 hover:text-amber-500 hover:bg-white/5 transition"
+          onClick={() => transformRef.current?.zoomIn(0.15, 200)}
+          className="w-6 h-6 rounded-full flex items-center justify-center text-stone-400 hover:text-amber-500 hover:bg-white/5 transition text-base leading-none"
           aria-label="Zoom in"
         >
           +
+        </button>
+        <button
+          data-testid="zoom-reset-btn"
+          onClick={() => transformRef.current?.resetTransform(250)}
+          title="Reset zoom"
+          className="font-mono-cart text-[10px] uppercase tracking-widest text-stone-400 hover:text-amber-500 px-2 py-1 rounded-full hover:bg-white/5 transition min-w-[52px] text-center"
+        >
+          {Math.round(scale * 100)}%
         </button>
       </div>
     </div>
@@ -537,6 +558,20 @@ function cursorFor(tool) {
 
 function rid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+// Logarithmic slider mapping so zoom feels even across the full 0.15x → 8x range.
+const MIN_S = 0.15;
+const MAX_S = 8;
+function scaleToSlider(s) {
+  const clamped = Math.max(MIN_S, Math.min(MAX_S, s));
+  return Math.round(
+    ((Math.log(clamped) - Math.log(MIN_S)) / (Math.log(MAX_S) - Math.log(MIN_S))) * 1000,
+  );
+}
+function sliderToScale(v) {
+  const t = Math.max(0, Math.min(1000, v)) / 1000;
+  return Math.exp(Math.log(MIN_S) + t * (Math.log(MAX_S) - Math.log(MIN_S)));
 }
 
 // Pin button with drag-to-reposition support.

@@ -54,6 +54,40 @@ body {
   animation: pinBounce 0.4s ease-out;
 }
 
+.zoom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+  cursor: pointer;
+}
+.zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #d97706;
+  border: 2px solid #1e1b18;
+  box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.4);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.zoom-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+.zoom-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #d97706;
+  border: 2px solid #1e1b18;
+  box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.4);
+  cursor: pointer;
+}
+
 @keyframes pinBounce {
   0% { transform: scale(0) translateY(-10px); opacity: 0; }
   60% { transform: scale(1.15) translateY(0); opacity: 1; }
