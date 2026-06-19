@@ -9,6 +9,7 @@ import AIRedrawDialog from "../components/editor/AIRedrawDialog";
 import NestedMapSheet from "../components/editor/NestedMapSheet";
 import { exportMapAsPng } from "../lib/exportMap";
 import ShapeEditPopover from "../components/editor/ShapeEditPopover";
+import CombatPanel from "../components/editor/CombatPanel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +50,15 @@ export default function Editor() {
   const [pinColorFilter, setPinColorFilter] = useState(new Set());
   const [pendingDeletePin, setPendingDeletePin] = useState(null);
   const [editingShape, setEditingShape] = useState(null);
+  const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const [showTokenLabels, setShowTokenLabels] = useState(true);
+  const [combatOpen, setCombatOpen] = useState(false);
+
+  // Wrap setTool so picking any tool auto-reopens the properties panel
+  const setToolAndReopen = (t) => {
+    setTool(t);
+    setPropertiesOpen(true);
+  };
 
   const undoStack = useRef([]);
   const redoStack = useRef([]);
@@ -277,6 +287,7 @@ export default function Editor() {
         onAIRegionSelected={setAiRegion}
         pinColorFilter={pinColorFilter}
         onShapeClick={(s) => setEditingShape(s)}
+        showTokenLabels={showTokenLabels}
       />
 
       <TopBar
@@ -288,33 +299,58 @@ export default function Editor() {
         onImport={onImportImage}
         onSwitchMap={(id) => navigate(`/campaign/${campaignId}/map/${id}`)}
         onExport={() => exportMapAsPng(mapDoc, shapes, pins, layers, campaign.name)}
+        onToggleCombat={() => setCombatOpen((v) => !v)}
+        combatOpen={combatOpen}
       />
 
       <ToolDock
         tool={tool}
-        setTool={setTool}
+        setTool={setToolAndReopen}
         onUndo={undo}
         onRedo={redo}
         canUndo={undoStack.current.length > 0}
         canRedo={redoStack.current.length > 0}
       />
 
-      <PropertiesPanel
-        tool={tool}
-        color={color}
-        setColor={setColor}
-        brushSize={brushSize}
-        setBrushSize={setBrushSize}
-        layers={layers}
-        setLayers={setLayers}
-        activeLayerId={activeLayerId}
-        setActiveLayerId={setActiveLayerId}
-        shapes={shapes}
-        setShapes={setShapes}
-        pins={pins}
-        pinColorFilter={pinColorFilter}
-        setPinColorFilter={setPinColorFilter}
-      />
+      {propertiesOpen ? (
+        <PropertiesPanel
+          tool={tool}
+          color={color}
+          setColor={setColor}
+          brushSize={brushSize}
+          setBrushSize={setBrushSize}
+          layers={layers}
+          setLayers={setLayers}
+          activeLayerId={activeLayerId}
+          setActiveLayerId={setActiveLayerId}
+          shapes={shapes}
+          setShapes={setShapes}
+          pins={pins}
+          pinColorFilter={pinColorFilter}
+          setPinColorFilter={setPinColorFilter}
+          showTokenLabels={showTokenLabels}
+          setShowTokenLabels={setShowTokenLabels}
+          onClose={() => setPropertiesOpen(false)}
+        />
+      ) : (
+        <button
+          data-testid="properties-reopen"
+          onClick={() => setPropertiesOpen(true)}
+          title="Show panel"
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-30 glass rounded-l-2xl rounded-r-md px-1.5 py-4 text-stone-400 hover:text-amber-500 transition"
+        >
+          <span className="block w-1 h-8 rounded-full bg-current opacity-60" />
+        </button>
+      )}
+
+      {combatOpen && (
+        <CombatPanel
+          shapes={shapes}
+          setShapes={setShapes}
+          onPushHistory={pushHistory}
+          onClose={() => setCombatOpen(false)}
+        />
+      )}
 
       {aiRegion && (
         <AIRedrawDialog

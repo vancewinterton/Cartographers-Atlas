@@ -1,3 +1,42 @@
+// Soft-erase intersection helper (declared as a function so it hoists above the component)
+function circleIntersectsShape(s, p, r) {
+  const cx = p.x;
+  const cy = p.y;
+  if (s.type === "rect" || s.type === "image" || s.type === "ai-region") {
+    const closestX = Math.max(s.x, Math.min(cx, s.x + s.w));
+    const closestY = Math.max(s.y, Math.min(cy, s.y + s.h));
+    const dx = cx - closestX;
+    const dy = cy - closestY;
+    return dx * dx + dy * dy <= r * r;
+  }
+  if (s.type === "circle") {
+    const ecx = s.x + s.w / 2;
+    const ecy = s.y + s.h / 2;
+    const ex = Math.abs(s.w) / 2;
+    const ey = Math.abs(s.h) / 2;
+    if (ex === 0 || ey === 0) return false;
+    return (
+      ((cx - ecx) ** 2) / ((ex + r) * (ex + r)) +
+        ((cy - ecy) ** 2) / ((ey + r) * (ey + r)) <=
+      1
+    );
+  }
+  if (s.type === "text") {
+    const w = (s.text?.length || 0) * (s.size || 18) * 0.5;
+    const closestX = Math.max(s.x, Math.min(cx, s.x + w));
+    const closestY = Math.max(s.y - (s.size || 18), Math.min(cy, s.y));
+    return Math.hypot(cx - closestX, cy - closestY) <= r;
+  }
+  if (s.type === "polygon") {
+    for (let i = 0; i < s.points.length; i += 2) {
+      if (Math.hypot(s.points[i] - cx, s.points[i + 1] - cy) <= r) return true;
+    }
+    return false;
+  }
+  return false;
+}
+
+
 import { useEffect, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { getPinIcon } from "./pinIcons";
@@ -21,6 +60,7 @@ export default function MapCanvas({
   pinColorFilter,
   onShapeClick,
   readOnly,
+  showTokenLabels = true,
 }) {
   const W = mapDoc.image_width || 1600;
   const H = mapDoc.image_height || 1000;
@@ -269,30 +309,44 @@ export default function MapCanvas({
     setDrawing(null);
   };
 
-  // Soft erase: filter out points within radius from brush strokes on visible+unlocked layers.
+  // Soft erase: removes BRUSH stroke points within radius AND deletes any other shape/pin
+  // whose bounding box intersects the eraser circle (on visible, unlocked layers only).
   const applySoftErase = (p) => {
     const r = Math.max(6, brushSize * 3);
     const r2 = r * r;
     const visibleLayerIds = new Set(layers.filter((l) => l.visible && !l.locked).map((l) => l.id));
+
+    // Erase brush points; delete other shapes that intersect the circle
     let changed = false;
     const next = shapes
       .map((s) => {
-        if (s.type !== "brush" || !visibleLayerIds.has(s.layerId)) return s;
-        const newPoints = [];
-        for (let i = 0; i < s.points.length; i += 2) {
-          const dx = s.points[i] - p.x;
-          const dy = s.points[i + 1] - p.y;
-          if (dx * dx + dy * dy > r2) {
-            newPoints.push(s.points[i], s.points[i + 1]);
-          } else {
-            changed = true;
+        if (!visibleLayerIds.has(s.layerId)) return s;
+        if (s.type === "brush") {
+          const newPoints = [];
+          for (let i = 0; i < s.points.length; i += 2) {
+            const dx = s.points[i] - p.x;
+            const dy = s.points[i + 1] - p.y;
+            if (dx * dx + dy * dy > r2) {
+              newPoints.push(s.points[i], s.points[i + 1]);
+            } else {
+              changed = true;
+            }
           }
+          if (newPoints.length === s.points.length) return s;
+          return { ...s, points: newPoints };
         }
-        if (newPoints.length === s.points.length) return s;
-        return { ...s, points: newPoints };
+        if (circleIntersectsShape(s, p, r)) {
+          changed = true;
+          return null;
+        }
+        return s;
       })
-      .filter((s) => s.type !== "brush" || s.points.length >= 4);
+      .filter((s) => s && (s.type !== "brush" || s.points.length >= 4));
     if (changed) setShapes(next);
+
+    // Pins
+    const remainingPins = pins.filter((pn) => Math.hypot(pn.x - p.x, pn.y - p.y) > r);
+    if (remainingPins.length !== pins.length) setPins(remainingPins);
   };
 
   const finishPolygon = () => {
@@ -404,6 +458,42 @@ export default function MapCanvas({
                   .map((s) => (
                     <ShapeEl key={s.id} s={s} />
                   ))}
+                {/* Ghost trails for tokens (drawn in SVG so they sit behind tokens) */}
+                {shapes
+                  .filter(
+                    (s) =>
+                      s.type === "token" &&
+                      visibleLayerIds.has(s.layerId) &&
+                      s.trail &&
+                      s.trail.length > 0,
+                  )
+                  .map((s) => {
+                    const pts = [...s.trail, { x: s.x, y: s.y }];
+                    const line = pts.map((p) => `${p.x},${p.y}`).join(" ");
+                    return (
+                      <g key={`trail-${s.id}`} opacity="0.55">
+                        <polyline
+                          points={line}
+                          fill="none"
+                          stroke={s.color || "#EF4444"}
+                          strokeWidth={Math.max(1.5, (s.size || 20) * 0.18)}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeDasharray="6 8"
+                        />
+                        {pts.slice(0, -1).map((p, idx) => (
+                          <circle
+                            key={idx}
+                            cx={p.x}
+                            cy={p.y}
+                            r={Math.max(2, (s.size || 20) * 0.12)}
+                            fill={s.color || "#EF4444"}
+                            opacity={(idx + 1) / pts.length}
+                          />
+                        ))}
+                      </g>
+                    );
+                  })}
                 {drawing && drawing.type !== "soft-erase" && drawing.type !== "grid" && (
                   <ShapeEl s={drawing} preview />
                 )}
@@ -432,12 +522,19 @@ export default function MapCanvas({
                     H={H}
                     tool={tool}
                     readOnly={readOnly}
+                    showTokenLabels={showTokenLabels}
                     onDragEnd={(nx, ny) => {
                       onPushHistory();
                       setShapes(
-                        shapes.map((sh) =>
-                          sh.id === s.id ? { ...sh, x: nx, y: ny } : sh,
-                        ),
+                        shapes.map((sh) => {
+                          if (sh.id !== s.id) return sh;
+                          // For tokens, push prior position to trail (cap 4)
+                          if (sh.type === "token") {
+                            const trail = [...(sh.trail || []), { x: sh.x, y: sh.y }].slice(-4);
+                            return { ...sh, x: nx, y: ny, trail };
+                          }
+                          return { ...sh, x: nx, y: ny };
+                        }),
                       );
                     }}
                     onClick={() => {
@@ -652,7 +749,7 @@ function GridPreview({ s }) {
 }
 
 // Draggable HTML element rendering for assets, tokens, and grids
-function MoveableShape({ shape, W, H, tool, readOnly, onDragEnd, onClick }) {
+function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, onDragEnd, onClick }) {
   const ref = useRef(null);
   const dragRef = useRef(null);
 
@@ -759,7 +856,7 @@ function MoveableShape({ shape, W, H, tool, readOnly, onDragEnd, onClick }) {
             />
           </div>
         )}
-        {showLabel && (
+        {showLabel && showTokenLabels && (
           <div
             className="absolute left-1/2 -translate-x-1/2 -bottom-5 whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium glass text-stone-100 pointer-events-none"
             style={{ fontSize: Math.max(9, Math.min(13, sz / 4)) }}

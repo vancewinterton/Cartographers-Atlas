@@ -18,6 +18,7 @@ import {
   Share2,
   Copy,
   Check,
+  Swords,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import {
@@ -41,6 +42,8 @@ export default function TopBar({
   onSwitchMap,
   onExport,
   onShareToken,
+  onToggleCombat,
+  combatOpen,
 }) {
   const fileRef = useRef(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -161,6 +164,15 @@ export default function TopBar({
         >
           <Download className="w-4 h-4 mr-2" />
           Export PNG
+        </Button>
+        <Button
+          data-testid="combat-btn"
+          variant="ghost"
+          onClick={onToggleCombat}
+          className={`hover:bg-white/5 h-9 ${combatOpen ? "text-amber-500" : "text-stone-300 hover:text-amber-500"}`}
+        >
+          <Swords className="w-4 h-4 mr-2" />
+          Combat
         </Button>
         <Button
           data-testid="share-btn"

@@ -1,7 +1,8 @@
 import { Slider } from "../ui/slider";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
-import { Eye, EyeOff, Lock, Unlock, Plus, Trash2 } from "lucide-react";
+import { Switch } from "../ui/switch";
+import { Eye, EyeOff, Lock, Unlock, Plus, Trash2, X } from "lucide-react";
 
 const PALETTE = [
   "#D97706",
@@ -29,6 +30,9 @@ export default function PropertiesPanel({
   pins,
   pinColorFilter,
   setPinColorFilter,
+  showTokenLabels,
+  setShowTokenLabels,
+  onClose,
 }) {
   const addLayer = () => {
     const id = "L" + (layers.length + 1) + "_" + Math.random().toString(36).slice(2, 6);
@@ -56,6 +60,14 @@ export default function PropertiesPanel({
       data-testid="properties-panel"
       className="absolute right-4 top-20 bottom-4 z-30 w-80 glass rounded-2xl p-5 overflow-y-auto"
     >
+      <button
+        data-testid="properties-close"
+        onClick={onClose}
+        title="Hide panel (will reopen when you pick a tool)"
+        className="absolute top-3 right-3 text-stone-500 hover:text-amber-500 p-1 rounded hover:bg-white/5"
+      >
+        <X className="w-4 h-4" />
+      </button>
       {/* Brush */}
       <Section title="Stroke">
         <div className="grid grid-cols-8 gap-2 mb-3">
@@ -174,6 +186,17 @@ export default function PropertiesPanel({
         <p className="text-sm text-stone-400 leading-relaxed">
           {toolHelp(tool)}
         </p>
+      </Section>
+
+      <Section title="Display">
+        <label className="flex items-center justify-between rounded-lg px-2.5 py-2 bg-black/20">
+          <span className="text-sm text-stone-200">Show token names</span>
+          <Switch
+            data-testid="toggle-token-labels"
+            checked={!!showTokenLabels}
+            onCheckedChange={setShowTokenLabels}
+          />
+        </label>
       </Section>
 
       {/* Pin color filter */}
