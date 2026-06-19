@@ -1,0 +1,59 @@
+{
+  "summary": "Tested Cartographer's Atlas backend (14 pytest tests, all PASS including AI redraw for both Gemini Nano Banana and OpenAI gpt-image-1) and frontend UI flow. Dashboard, campaign creation, navigation to editor, topbar, tool dock (all 6 tools selectable), layers add, pin drop all work. CRITICAL: clicking an existing pin does NOT open NestedMapSheet because the canvas-overlay div is rendered after (z-index above) the pins layer and captures the click before it reaches the pin button.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "MapCanvas.js (pin click)",
+        "issue": "Clicking an existing pin does not open NestedMapSheet. The canvas-overlay <div data-testid='canvas-overlay'> at lines 349-361 of MapCanvas.js is rendered AFTER the pins layer in DOM and sits on top with pointerEvents:'auto' when a tool is active. Its onPointerDown swallows the click before the pin's onClick handler (which has e.stopPropagation) can fire. Result: while the pin tool is active, clicking on a pin either does nothing (Playwright .click via DOM) or drops another pin (real user click).",
+        "selector": "[data-testid='canvas-overlay'] vs [data-testid^='pin-']",
+        "priority": "HIGH"
+      },
+      {
+        "component": "Dialog (Radix)",
+        "issue": "Console warning: 'Missing Description or aria-describedby for DialogContent'. Cosmetic a11y warning on both new-campaign dialog and likely other dialogs.",
+        "selector": "DialogContent",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Pin -> Linked Sub-Map navigation",
+        "issue": "Cannot reach the NestedMapSheet from the UI because of the canvas-overlay z-order bug above. Backend endpoints to create the sub-map and persist linked_map_id work correctly when tested directly. The end-to-end flow (drop pin -> click pin -> create sub-map -> open sub-map -> /map/<id>) is blocked.",
+        "affected_selectors": ["[data-testid='nested-map-sheet']", "[data-testid='new-submap-name']", "[data-testid='create-submap-btn']", "[data-testid='open-linked-map']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backend.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix pin click in MapCanvas.js: Either (a) render the pins layer AFTER the canvas-overlay so it sits on top, or (b) move pins out of the TransformComponent into a wrapper above the overlay, or (c) in canvas-overlay's onPointerDown for the pin tool, check event.target — if a pin button or its child is the original target, skip pin drop and let the click propagate to the pin. Easiest fix: in MapCanvas.js move the pins.map(...) <button> block to after the canvas-overlay <div> so DOM order puts pins above the overlay (since overlay has pointerEvents auto, pins need to be in front).",
+    "Add aria-describedby or DialogDescription to DialogContent components to silence Radix a11y warning."
+  ],
+  "critical_code_review_comments": [
+    "MapCanvas.js: Pin layer rendered before the interaction overlay -> overlay blocks pin clicks. This is the root cause of the broken nested-map flow.",
+    "server.py uses @app.on_event('shutdown') (deprecated in FastAPI); consider lifespan handler.",
+    "server.py logger is defined AFTER it is referenced inside ai_redraw exception handler (logger.exception). Since logging.basicConfig + logger definition is at module scope after route definition, this currently works at runtime (routes are called after import completes) but is brittle — move logger init to top of file.",
+    "AIRedrawRequest accepts arbitrary prompt with no length cap — minor abuse vector.",
+    "delete_map cascade only one level deep; nested sub-sub-maps would be orphaned. Use recursive cascade or delete WHERE ancestor chain contains id."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_backend.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "85%"
+  },
+  "test_credentials": "N/A (no auth)",
+  "seed_data_creation": "Tests create and clean up their own TEST_/UITEST campaigns. UITEST and UITEST2 campaigns left in DB by Playwright runs (no cleanup).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite is at /app/backend/tests/test_backend.py — all 14 pass in ~25s including real AI calls. The only outstanding bug is the canvas-overlay vs pin layer z-order in MapCanvas.js blocking pin-click -> NestedMapSheet. After the fix, retest with the playwright script provided in this iteration (pin tool -> click canvas -> click pin -> nested-map-sheet should appear -> fill new-submap-name -> create-submap-btn -> open-linked-map -> URL should contain /map/).",
+  "rca of the issue": "Root cause: In /app/frontend/src/components/editor/MapCanvas.js, pins are rendered as buttons inside the TransformComponent at lines 292-322, BEFORE the absolute-positioned interaction overlay <div data-testid='canvas-overlay'> at lines 349-361. The overlay has class 'absolute inset-0' and style pointerEvents:'auto' (when a tool is active) and onPointerDown that handles pin drop. Because the overlay is later in DOM and has the same stacking context, it paints on top of the pins. The user's click hits the overlay first; onPointerDown runs (potentially dropping a duplicate pin) and the pin button's onClick never fires, so onPinClick(p) -> setNestedSheetOpen(true) never executes. Reproduction: navigate to editor, select tool-pin, click canvas to drop a pin, click that pin — NestedMapSheet does not open. Mitigation: re-order JSX so pins render after canvas-overlay, OR in onPointerDown check `e.target.closest('[data-testid^=pin-]')` and early-return."
+}
