@@ -9,11 +9,11 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Button } from "../ui/button";
 import { Slider } from "../ui/slider";
-import { Trash2, Swords, ImageIcon, Grid3x3 } from "lucide-react";
+import { Trash2, Swords, ImageIcon, Grid3x3, Copy } from "lucide-react";
 
 const COLORS = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#A855F7", "#F3F2F0", "#0B0A09"];
 
-export default function ShapeEditPopover({ shape, onUpdate, onDelete, onClose }) {
+export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicate, onClose }) {
   const [local, setLocal] = useState(shape);
   useEffect(() => setLocal(shape), [shape?.id]);
   if (!shape) return null;
@@ -262,7 +262,18 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onClose })
             </>
           )}
 
-          <div className="pt-6">
+          <div className="pt-6 space-y-2">
+            {onDuplicate && (
+              <Button
+                data-testid="shape-duplicate-btn"
+                variant="ghost"
+                onClick={onDuplicate}
+                className="text-amber-500 hover:bg-amber-500/10 w-full justify-start"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Duplicate {isToken ? "token" : isAsset ? "asset" : "grid"}
+              </Button>
+            )}
             <Button
               data-testid="shape-delete-btn"
               variant="ghost"

@@ -10,6 +10,7 @@ import NestedMapSheet from "../components/editor/NestedMapSheet";
 import { exportMapAsPng } from "../lib/exportMap";
 import ShapeEditPopover from "../components/editor/ShapeEditPopover";
 import CombatPanel from "../components/editor/CombatPanel";
+import { ChevronLeft as ChevronLeftIcon } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -336,10 +337,11 @@ export default function Editor() {
         <button
           data-testid="properties-reopen"
           onClick={() => setPropertiesOpen(true)}
-          title="Show panel"
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-30 glass rounded-l-2xl rounded-r-md px-1.5 py-4 text-stone-400 hover:text-amber-500 transition"
+          title="Show stroke panel"
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-30 glass rounded-2xl px-3 py-3 text-stone-300 hover:text-amber-500 hover:bg-white/5 transition flex items-center gap-2"
         >
-          <span className="block w-1 h-8 rounded-full bg-current opacity-60" />
+          <ChevronLeftIcon className="w-4 h-4" />
+          <span className="font-mono-cart text-[10px] uppercase tracking-widest">Panel</span>
         </button>
       )}
 
@@ -444,6 +446,19 @@ export default function Editor() {
               arr.map((s) => (s.id === editingShape.id ? { ...s, ...patch } : s)),
             );
             setEditingShape((cur) => (cur ? { ...cur, ...patch } : cur));
+          }}
+          onDuplicate={() => {
+            pushHistory();
+            const copy = {
+              ...editingShape,
+              id: cryptoRandom(),
+              x: (editingShape.x || 0) + 30,
+              y: (editingShape.y || 0) + 30,
+              trail: undefined,
+            };
+            setShapes((arr) => [...arr, copy]);
+            setEditingShape(copy);
+            toast.success(`${editingShape.type === "token" ? "Token" : editingShape.type === "asset" ? "Asset" : "Grid"} duplicated`);
           }}
           onDelete={() => {
             pushHistory();

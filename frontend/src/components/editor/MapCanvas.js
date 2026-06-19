@@ -815,7 +815,7 @@ function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, on
       <div
         ref={ref}
         data-testid={`token-${shape.id}`}
-        className="editable-overlay absolute z-[5] select-none"
+        className="editable-overlay absolute z-[5] select-none group"
         style={{
           left: shape.x - sz / 2,
           top: shape.y - sz / 2,
@@ -838,7 +838,7 @@ function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, on
                 fontSize: Math.max(7, Math.min(sz * 0.45, sz - 4)),
               }}
             >
-              {shape.label.slice(0, sz >= 36 ? 4 : sz >= 24 ? 2 : 1).toUpperCase()}
+              {shape.label.slice(0, 1).toUpperCase()}
             </span>
           ) : null}
         </div>
@@ -858,7 +858,7 @@ function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, on
         )}
         {showLabel && showTokenLabels && (
           <div
-            className="absolute left-1/2 -translate-x-1/2 -bottom-5 whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium glass text-stone-100 pointer-events-none"
+            className="absolute left-1/2 -translate-x-1/2 -bottom-6 whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium glass text-stone-100 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150"
             style={{ fontSize: Math.max(9, Math.min(13, sz / 4)) }}
           >
             {shape.label}

@@ -69,11 +69,17 @@ export default function TopBar({
     }
   };
 
-  const copyLink = async () => {
+  const copyLink = async (mode = "view") => {
+    const url =
+      mode === "edit"
+        ? `${window.location.origin}/campaign/${campaign.id}`
+        : shareUrl;
+    if (!url) return;
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
+      await navigator.clipboard.writeText(url);
+      setCopied(mode);
       setTimeout(() => setCopied(false), 1500);
+      toast.success(mode === "edit" ? "Edit link copied" : "View link copied");
     } catch {
       toast.error("Couldn't copy");
     }
@@ -210,13 +216,43 @@ export default function TopBar({
             </ShareDialogDescription>
           </ShareDialogHeader>
           <div className="mt-4 space-y-4">
+            <div
+              data-testid="share-edit-section"
+              className="rounded-xl border border-amber-700/30 bg-amber-500/5 p-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="pr-4">
+                  <div className="text-sm font-medium text-stone-100 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    Editor link
+                  </div>
+                  <div className="text-[10px] text-stone-500 font-mono-cart uppercase tracking-wider mt-1">
+                    Co-DMs can edit everything (no password)
+                  </div>
+                </div>
+                <Button
+                  data-testid="copy-edit-link"
+                  size="sm"
+                  onClick={() => copyLink("edit")}
+                  className="bg-amber-600 hover:bg-amber-500 text-stone-950 shrink-0"
+                >
+                  {copied === "edit" ? (
+                    <><Check className="w-3.5 h-3.5 mr-1" /> Copied</>
+                  ) : (
+                    <><Copy className="w-3.5 h-3.5 mr-1" /> Copy</>
+                  )}
+                </Button>
+              </div>
+            </div>
+
             <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/30 px-4 py-3">
               <div>
-                <div className="text-sm font-medium text-stone-100">
-                  Enable share link
+                <div className="text-sm font-medium text-stone-100 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-stone-400" />
+                  Read-only player link
                 </div>
                 <div className="text-[10px] text-stone-500 font-mono-cart uppercase tracking-wider mt-0.5">
-                  Anyone with the link can view this campaign
+                  Players can pan/zoom, click pins, view notes — no editing
                 </div>
               </div>
               <Switch
@@ -228,28 +264,24 @@ export default function TopBar({
             {shareToken && (
               <div
                 data-testid="share-link-row"
-                className="flex items-center gap-2 rounded-xl bg-black/40 border border-amber-700/30 px-3 py-2"
+                className="flex items-center gap-2 rounded-xl bg-black/40 border border-white/10 px-3 py-2"
               >
                 <Input
                   readOnly
                   value={shareUrl}
                   data-testid="share-url-input"
-                  className="bg-transparent border-0 focus-visible:ring-0 px-0 text-amber-500 font-mono-cart text-xs"
+                  className="bg-transparent border-0 focus-visible:ring-0 px-0 text-stone-300 font-mono-cart text-xs"
                 />
                 <Button
                   data-testid="copy-share-link"
                   size="sm"
-                  onClick={copyLink}
-                  className="bg-amber-600 hover:bg-amber-500 text-stone-950 shrink-0"
+                  onClick={() => copyLink("view")}
+                  className="bg-stone-700 hover:bg-stone-600 text-stone-100 shrink-0"
                 >
-                  {copied ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 mr-1" /> Copied
-                    </>
+                  {copied === "view" ? (
+                    <><Check className="w-3.5 h-3.5 mr-1" /> Copied</>
                   ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5 mr-1" /> Copy
-                    </>
+                    <><Copy className="w-3.5 h-3.5 mr-1" /> Copy</>
                   )}
                 </Button>
               </div>

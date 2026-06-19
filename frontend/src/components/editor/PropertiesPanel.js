@@ -63,8 +63,8 @@ export default function PropertiesPanel({
       <button
         data-testid="properties-close"
         onClick={onClose}
-        title="Hide panel (will reopen when you pick a tool)"
-        className="absolute top-3 right-3 text-stone-500 hover:text-amber-500 p-1 rounded hover:bg-white/5"
+        title="Hide panel (it will pop back when you pick a tool)"
+        className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/40 ring-1 ring-white/10 text-stone-300 hover:text-amber-500 hover:bg-amber-500/10 hover:ring-amber-700/40 flex items-center justify-center transition"
       >
         <X className="w-4 h-4" />
       </button>
