@@ -12,6 +12,7 @@ import {
   Grid3x3,
   ImagePlus,
   Swords,
+  Shield,
   BoxSelect,
 } from "lucide-react";
 
@@ -25,6 +26,7 @@ const TOOLS = [
   { id: "text", icon: Type, label: "Text" },
   { id: "pin", icon: MapPin, label: "Pin" },
   { id: "token", icon: Swords, label: "Enemy Token" },
+  { id: "hero-token", icon: Shield, label: "Hero Token" },
   { id: "asset", icon: ImagePlus, label: "Import Asset" },
   { id: "grid", icon: Grid3x3, label: "Grid" },
   { id: "ai-redraw", icon: Sparkles, label: "AI Redraw" },

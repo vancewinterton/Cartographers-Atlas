@@ -2,10 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Share as ShareAPI, Maps } from "../lib/api";
 import MapCanvas from "../components/editor/MapCanvas";
+import PaintPanel from "../components/editor/PaintPanel";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet";
-import { Compass, MapPinned, ArrowUpRight, ExternalLink, Wifi } from "lucide-react";
+import { Compass, MapPinned, ArrowUpRight, ExternalLink, Wifi, Hand, Paintbrush } from "lucide-react";
 import { Button } from "../components/ui/button";
 import useMapPolling from "../lib/useMapPolling";
+
+const PAINT_TOOLS = new Set(["brush", "soft-erase", "erase"]);
 
 export default function SharePage() {
   const { token } = useParams();
@@ -18,6 +21,14 @@ export default function SharePage() {
   const [synced, setSynced] = useState(true);
   const saveTimer = useRef(null);
   const draggingRef = useRef(false);
+
+  // Viewer paint state — players can draw on the shared map and it syncs to the DM.
+  const [viewerTool, setViewerTool] = useState("pan");
+  const [paintColor, setPaintColor] = useState("#D97706");
+  const [brushSize, setBrushSize] = useState(6);
+  const [brushOpacity, setBrushOpacity] = useState(1);
+  const [brushVariant, setBrushVariant] = useState("brush");
+  const [paintOpen, setPaintOpen] = useState(false);
 
   useEffect(() => {
     ShareAPI.get(token)
@@ -68,15 +79,22 @@ export default function SharePage() {
   // Persist local shape changes (e.g. after a token drag) back to the server.
   const persistShapes = (nextShapes) => {
     if (!currentMap) return;
-    const layers = (currentMap.layers || []).map((l) => ({
+    const baseLayers =
+      currentMap.layers && currentMap.layers.length
+        ? currentMap.layers
+        : [{ id: "L1", name: "Layer 1", visible: true, locked: false }];
+    const firstId = baseLayers[0].id;
+    const layersOut = baseLayers.map((l, idx) => ({
       ...l,
-      shapes: nextShapes.filter((s) => s.layerId === l.id),
+      shapes: nextShapes.filter(
+        (s) => (s.layerId || firstId) === l.id || (idx === 0 && !s.layerId),
+      ),
     }));
     setSynced(false);
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       try {
-        const saved = await Maps.update(currentMap.id, { layers });
+        const saved = await Maps.update(currentMap.id, { layers: layersOut });
         // Server bumps updated_at; merge it so polling doesn't re-fetch the same rev.
         setData((prev) => {
           if (!prev) return prev;
@@ -125,9 +143,11 @@ export default function SharePage() {
     >
       <MapCanvas
         mapDoc={currentMap}
-        tool="pan"
-        color="#D97706"
-        brushSize={4}
+        tool={viewerTool}
+        color={paintColor}
+        brushSize={brushSize}
+        brushOpacity={brushOpacity}
+        brushVariant={brushVariant}
         shapes={allShapes}
         setShapes={(updater) => {
           // setShapes may be called with either an updater fn or the new array
@@ -153,6 +173,56 @@ export default function SharePage() {
         readOnly
         viewerCanDragTokens
       />
+
+      {/* Viewer paint dock — players can draw and it syncs back to the DM */}
+      <div
+        data-testid="viewer-tool-dock"
+        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 glass rounded-2xl p-2 flex flex-col gap-1"
+      >
+        <button
+          data-testid="viewer-tool-pan"
+          onClick={() => setViewerTool("pan")}
+          title="Pan / Move tokens"
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+            viewerTool === "pan"
+              ? "bg-white/10 text-amber-500 ring-1 ring-amber-600/30"
+              : "text-stone-400 hover:bg-white/5 hover:text-stone-100"
+          }`}
+        >
+          <Hand className="w-4 h-4" />
+        </button>
+        <button
+          data-testid="viewer-tool-paint"
+          onClick={() => {
+            setPaintOpen(true);
+            if (!PAINT_TOOLS.has(viewerTool)) setViewerTool("brush");
+          }}
+          title="Paint tools"
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+            PAINT_TOOLS.has(viewerTool)
+              ? "bg-white/10 text-amber-500 ring-1 ring-amber-600/30"
+              : "text-stone-400 hover:bg-white/5 hover:text-stone-100"
+          }`}
+        >
+          <Paintbrush className="w-4 h-4" />
+        </button>
+      </div>
+
+      {paintOpen && (
+        <PaintPanel
+          tool={viewerTool}
+          setTool={setViewerTool}
+          color={paintColor}
+          setColor={setPaintColor}
+          brushSize={brushSize}
+          setBrushSize={setBrushSize}
+          brushOpacity={brushOpacity}
+          setBrushOpacity={setBrushOpacity}
+          brushVariant={brushVariant}
+          setBrushVariant={setBrushVariant}
+          onClose={() => setPaintOpen(false)}
+        />
+      )}
 
       {/* Floating share header */}
       <div className="absolute top-4 left-4 right-4 z-30 flex items-center justify-between pointer-events-none">

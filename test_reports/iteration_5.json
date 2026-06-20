@@ -1,0 +1,39 @@
+{
+  "summary": "Verified the 5 new editor features against the public preview URL using Playwright. Confirmed working: Hero Token tool (tool-hero-token) drops BLUE #3B82F6 tokens; Enemy Token tool (tool-token) drops RED #EF4444 tokens (hp 30/30 and 15/15 respectively as shown in Combat Tracker after import); Multi-select marquee → selection-actionbar shows bulk-add-combat which opens combat-tracker-panel and imports the selected tokens as Hero+Enemy combatants; Spray paint variant renders a scattered peppering of small dots (verified group with >70 child circles after a single stroke + visible orange dot scatter on map); Share page viewer dock (viewer-tool-dock) exposes viewer-tool-pan and viewer-tool-paint, and viewer-tool-paint opens the PaintPanel (data-testid=paint-panel) on the share view. Soft Eraser variant (paint-variant-soft-erase) is selectable from PaintPanel with the new continuous-drag description ('Drag over brush strokes…'). One automation-only quirk: single-token click → ShapeEditPopover (data-testid=shape-edit-sheet) did not open via synthetic mouse.click in this run (clicks landed on the blue circle DOM element but the popover stayed closed); the wiring in Editor.js (onAddToCombat → addTokensToCombat) is identical to the bulk path which fully works, so this is most likely a Playwright/coord interaction issue rather than a real bug. Cross-context bidirectional sync polling code is in place (useMapPolling at 2.5s, applyRemoteMap, autosave watermark) and the viewer paint stack persists shapes via persistShapes; full DM↔viewer propagation was not validated end-to-end inside a single browser context.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Single token click → ShapeEditPopover", "issue": "Could not reproduce the popover opening via synthetic Playwright clicks on a #3B82F6 token; the bulk path using the same addTokensToCombat works perfectly so this looks like a test-only interaction issue, but main agent should sanity-check that clicking a single hero/enemy token in the real UI still opens [data-testid=shape-edit-sheet] with [data-testid=shape-add-combat-btn]", "affected_selectors": ["[data-testid=shape-edit-sheet]", "[data-testid=shape-add-combat-btn]"]}
+    ],
+    "design_issues": [
+      {"screen": "Editor + Share", "issues": ["Pre-existing React hydration warning '<option> cannot be a child of <span>' from CombatantCard target-select still present (carried over from iteration_4, not part of this task)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_4.json"
+  ],
+  "action_items": [
+    "Manually verify clicking a single hero/enemy token opens the ShapeEditPopover with the new shape-add-combat-btn (testing-agent automation couldn't reliably hit the SVG circle in this run; code wiring looks correct).",
+    "Manually verify bidirectional cross-context sync end-to-end (DM editor in one tab ↔ /share/cc647d6c1bd34555ba9265d30b0cc10c in another) — code paths exist (useMapPolling, persistShapes, applyRemoteMap) but were not exercised across two simultaneous browser contexts by the automation."
+  ],
+  "critical_code_review_comments": [
+    "GOOD: ToolDock.js adds 'hero-token' entry alongside 'token' and MapCanvas.onPointerDown branches on tool==='hero-token' (isHero) to set color #3B82F6 + hp 30/30 — verified visually: blue token placement vs red enemy token (#EF4444 hp 15/15).",
+    "GOOD: Editor.js addTokensToCombat() filters to type==='token', dispatches IMPORT_FROM_MAP via combatDispatchRef, and is shared by both onAddToCombat (single via ShapeEditPopover) and bulk-add-combat in selection-actionbar — DRY and consistent.",
+    "GOOD: selection-actionbar conditionally renders bulk-add-combat only when at least one selected shape has type==='token' (Editor.js line 554), correct gating.",
+    "GOOD: Spray variant renders as scatter of small <circle> dots via sprayDots(); verified group containing 75 child circles for a single short stroke — matches spec of 'peppered scatter'.",
+    "GOOD: Soft-erase PaintPanel description updated to 'Drag over brush strokes — anything inside the circle gets erased.' (continuous-drag behavior); MapCanvas onPointerMove invokes applySoftErase continuously during drag.",
+    "GOOD: Share.js exposes viewer-tool-dock with viewer-tool-pan and viewer-tool-paint; clicking viewer-tool-paint opens PaintPanel (data-testid=paint-panel) on the share page — verified live.",
+    "GOOD: Editor autosave debounced 1.5s; lastSavedTsRef + lastLocalEditRef + skipNextAutosaveRef sequence in applyRemoteMap prevents echo-loops when a remote update is pulled in (3s local-edit grace window before remote can overwrite).",
+    "MINOR/CARRY-OVER: Hydration warning '<option> cannot be a child of <span>' from target-select in CombatantCard — unrelated to this iteration; harmless.",
+    "OBSERVATION: useMapPolling interval is 2.5s — bidirectional propagation between DM and viewer will lag by up to ~5s combined with autosave debounce (1.5s). For 'real-time' UX this is acceptable but a websocket/SSE upgrade would feel snappier; not in scope."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "~85% of new features verified via automation (hero-token, enemy-token, bulk-add-combat, spray scatter, share viewer paint dock + PaintPanel). Soft-eraser continuous drag + single-token popover + DM↔viewer cross-context sync flagged for manual confirmation."},
+  "test_credentials": "n/a — no auth",
+  "seed_data_creation": "Added a few hero-token and enemy-token shapes to campaign 189e3915-f26e-48f1-b75a-860e8f973d79 during the test, plus an orange brush stroke and a spray scatter. All persist on the map and can be cleared via the UI if desired.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test campaign id 189e3915-f26e-48f1-b75a-860e8f973d79; share token cc647d6c1bd34555ba9265d30b0cc10c. Public URL via frontend/.env REACT_APP_BACKEND_URL. New testids this iteration: tool-hero-token (ToolDock), shape-add-combat-btn (ShapeEditPopover), bulk-add-combat (selection-actionbar), paint-variant-spray, paint-variant-soft-erase (PaintPanel), viewer-tool-dock, viewer-tool-pan, viewer-tool-paint, share-page, paint-panel (Share.js). For single-token popover, prefer clicking the token's text label (e.g., 'New Hero') or use page.locator('g[data-testid^=\"shape-token-\"]').first().click() — Playwright click on the raw #3B82F6 <circle> via screen coords had to compete with overlapping pin/asset DOM nodes in this map. For cross-context sync, run two browser contexts concurrently (one /campaign/<id>, one /share/<token>) and allow ~5–7s after each action for polling to pick up the change.",
+  "rca_of_the_issue": "Single-token-click popover automation failure: the campaign canvas had many overlapping pin/asset/token nodes at the chosen blue-circle coordinates; synthetic clicks hit a pointer-events-transparent layer above the token group. Suggested next-agent fix is to use a deterministic shape-* testid selector rather than coordinate-based clicks."
+}

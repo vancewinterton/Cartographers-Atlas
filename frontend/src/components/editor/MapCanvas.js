@@ -159,23 +159,24 @@ export default function MapCanvas({
       return;
     }
 
-    if (tool === "token") {
+    if (tool === "token" || tool === "hero-token") {
       onPushHistory();
       const sz = Math.max(4, brushSize * 4);
+      const isHero = tool === "hero-token";
       setShapes([
         ...shapes,
         {
           id: rid(),
           type: "token",
           layerId: activeLayerId,
-          color,
+          color: isHero ? "#3B82F6" : "#EF4444",
           size: sz,
           x: p.x,
           y: p.y,
           label: "",
-          hp: null,
-          hpMax: null,
-          ac: null,
+          hp: isHero ? 30 : 15,
+          hpMax: isHero ? 30 : 15,
+          ac: 13,
         },
       ]);
       return;
@@ -269,6 +270,14 @@ export default function MapCanvas({
     if (!p) return;
     if (drawing.type === "brush") {
       setDrawing({ ...drawing, points: [...drawing.points, p.x, p.y] });
+    } else if (drawing.type === "soft-erase") {
+      applySoftErase(p);
+      setEraserHover(p);
+      setDrawing({ ...drawing, x: p.x, y: p.y });
+    } else if (drawing.type === "erase-drag") {
+      const hit = [...shapes].reverse().find((s) => hitTest(s, p));
+      if (hit) setShapes(shapes.filter((s) => s.id !== hit.id));
+      setDrawing({ ...drawing, x: p.x, y: p.y });
     } else {
       setDrawing({ ...drawing, w: p.x - drawing.x, h: p.y - drawing.y });
     }
@@ -995,10 +1004,18 @@ function ShapeEl({ s, preview }) {
   const fill = "none";
   const dash = preview ? "8 6" : undefined;
   if (s.type === "brush") {
-    // Variant-specific rendering: marker/highlighter use lower opacity + square caps,
-    // pencil uses thin solid, spray uses dashed dotted overlay
     const variant = s.variant || "brush";
     const baseOpacity = s.opacity != null ? s.opacity : 1;
+    if (variant === "spray") {
+      const dots = sprayDots(s.points, sw);
+      return (
+        <g fill={stroke} fillOpacity={baseOpacity}>
+          {dots.map((d, i) => (
+            <circle key={i} cx={d.x} cy={d.y} r={d.r} />
+          ))}
+        </g>
+      );
+    }
     const variantStyle =
       variant === "highlighter"
         ? { opacity: baseOpacity * 0.45, linecap: "butt", strokeDasharray: dash }
@@ -1006,8 +1023,6 @@ function ShapeEl({ s, preview }) {
         ? { opacity: baseOpacity * 0.85, linecap: "round", strokeDasharray: dash }
         : variant === "pencil"
         ? { opacity: baseOpacity * 0.95, linecap: "round", strokeDasharray: dash }
-        : variant === "spray"
-        ? { opacity: baseOpacity * 0.55, linecap: "round", strokeDasharray: dash ? dash : "1 4" }
         : variant === "calligraphy"
         ? { opacity: baseOpacity, linecap: "round", strokeDasharray: dash }
         : { opacity: baseOpacity, linecap: "round", strokeDasharray: dash };
@@ -1115,6 +1130,32 @@ function pairs(arr) {
   return out;
 }
 
+// Deterministic pseudo-random in [0,1) — keeps spray dots stable across re-renders.
+function pseudoRand(n) {
+  const x = Math.sin(n * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+// Build a peppered scatter of small dots around the stroke path (spray paint look).
+function sprayDots(points, sw) {
+  const dots = [];
+  if (!points || points.length < 2) return dots;
+  const radius = Math.max(2, sw) * 1.4;
+  for (let i = 0; i < points.length; i += 2) {
+    const px = points[i];
+    const py = points[i + 1];
+    for (let k = 0; k < 3; k++) {
+      const seed = i * 31 + k * 7 + 1;
+      const ang = pseudoRand(seed) * Math.PI * 2;
+      const dist = Math.sqrt(pseudoRand(seed + 1)) * radius;
+      const r = Math.max(0.5, sw * 0.1 + pseudoRand(seed + 2) * sw * 0.2);
+      dots.push({ x: px + Math.cos(ang) * dist, y: py + Math.sin(ang) * dist, r });
+    }
+    if (dots.length > 1200) break;
+  }
+  return dots;
+}
+
 function hitTest(s, p) {
   if (s.type === "rect" || s.type === "image" || s.type === "ai-region") {
     return p.x >= s.x && p.x <= s.x + s.w && p.y >= s.y && p.y <= s.y + s.h;
@@ -1144,6 +1185,7 @@ function cursorFor(tool) {
   if (tool === "pan") return "grab";
   if (tool === "pin") return "copy";
   if (tool === "token") return "copy";
+  if (tool === "hero-token") return "copy";
   if (tool === "asset") return "copy";
   if (tool === "soft-erase") return "cell";
   if (tool === "erase") return "not-allowed";

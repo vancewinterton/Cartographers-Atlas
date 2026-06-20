@@ -11,8 +11,9 @@ import NestedMapSheet from "../components/editor/NestedMapSheet";
 import { exportMapAsPng } from "../lib/exportMap";
 import ShapeEditPopover from "../components/editor/ShapeEditPopover";
 import CombatTrackerPanel from "../components/combat/CombatTrackerPanel";
-import { CombatProvider } from "../components/combat/CombatContext";
-import { ChevronLeft as ChevronLeftIcon } from "lucide-react";
+import { CombatProvider, useCombat } from "../components/combat/CombatContext";
+import useMapPolling from "../lib/useMapPolling";
+import { ChevronLeft as ChevronLeftIcon, Swords } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,6 +74,26 @@ export default function Editor() {
   const redoStack = useRef([]);
   const skipNextHistory = useRef(false);
 
+  // Real-time sync watermarks (bidirectional polling with viewers / co-DMs)
+  const [mapUpdatedAt, setMapUpdatedAt] = useState(null);
+  const combatDispatchRef = useRef(null);
+  const lastLocalEditRef = useRef(0);
+  const lastSavedTsRef = useRef(null);
+  const skipNextAutosaveRef = useRef(false);
+
+  const addTokensToCombat = (tokenShapes) => {
+    const tokens = (tokenShapes || []).filter((s) => s.type === "token");
+    if (!tokens.length) {
+      toast.error("Select a token to add to the tracker");
+      return;
+    }
+    combatDispatchRef.current?.({ type: "IMPORT_FROM_MAP", tokens });
+    setCombatOpen(true);
+    toast.success(
+      `Added ${tokens.length} token${tokens.length === 1 ? "" : "s"} to combat tracker`,
+    );
+  };
+
   // Load
   useEffect(() => {
     (async () => {
@@ -108,6 +129,9 @@ export default function Editor() {
         : [{ id: "L1", name: "Layer 1", visible: true, locked: false }];
     setLayers(ls);
     setActiveLayerId(ls[0].id);
+    setMapUpdatedAt(m.updated_at || null);
+    lastSavedTsRef.current = m.updated_at || null;
+    lastLocalEditRef.current = 0;
     undoStack.current = [];
     redoStack.current = [];
   };
@@ -165,19 +189,52 @@ export default function Editor() {
     }
   };
 
-  // Autosave debounced
+  // Autosave debounced + remote-sync watermarking
   useEffect(() => {
     if (!mapDoc) return;
-    const t = setTimeout(() => {
+    if (skipNextAutosaveRef.current) {
+      skipNextAutosaveRef.current = false;
+      return;
+    }
+    lastLocalEditRef.current = Date.now();
+    const t = setTimeout(async () => {
       const layersOut = layers.map((l) => ({
         ...l,
         shapes: shapes.filter((s) => s.layerId === l.id),
       }));
-      Maps.update(mapDoc.id, { layers: layersOut, pins }).catch(() => {});
+      try {
+        const saved = await Maps.update(mapDoc.id, { layers: layersOut, pins });
+        lastSavedTsRef.current = saved.updated_at;
+        setMapUpdatedAt(saved.updated_at);
+      } catch {
+        /* ignore */
+      }
     }, 1500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shapes, pins, layers]);
+
+  // Pull in changes made by viewers / co-DMs (skip while the local user is editing)
+  const applyRemoteMap = useCallback(
+    (fresh) => {
+      if (!fresh || !mapDoc || fresh.id !== mapDoc.id) return;
+      if (fresh.updated_at && fresh.updated_at === lastSavedTsRef.current) return;
+      if (Date.now() - lastLocalEditRef.current < 3000) return;
+      skipNextAutosaveRef.current = true;
+      setShapes(fresh.layers?.flatMap((l) => l.shapes || []) || []);
+      setPins(fresh.pins || []);
+      lastSavedTsRef.current = fresh.updated_at || null;
+      setMapUpdatedAt(fresh.updated_at || null);
+    },
+    [mapDoc],
+  );
+
+  useMapPolling({
+    mapId: mapDoc?.id,
+    localUpdatedAt: mapUpdatedAt,
+    onUpdate: applyRemoteMap,
+    intervalMs: 2500,
+  });
 
   // Keyboard shortcuts: Ctrl/Cmd+Z = undo, Ctrl/Cmd+Shift+Z = redo
   useEffect(() => {
@@ -315,6 +372,7 @@ export default function Editor() {
 
   return (
     <CombatProvider key={campaignId} storageKey={`combat_state_${campaignId}`}>
+    <CombatDispatchBridge dispatchRef={combatDispatchRef} />
     <div
       className="h-screen w-screen overflow-hidden canvas-bg relative"
       data-testid="editor-page"
@@ -493,6 +551,17 @@ export default function Editor() {
           >
             Hide / Show
           </button>
+          {shapes.some((s) => selectedIds.has(s.id) && s.type === "token") && (
+            <button
+              data-testid="bulk-add-combat"
+              onClick={() =>
+                addTokensToCombat(shapes.filter((s) => selectedIds.has(s.id)))
+              }
+              className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-200 text-xs font-medium transition flex items-center gap-1.5"
+            >
+              <Swords className="w-3.5 h-3.5" /> Add to Combat
+            </button>
+          )}
           <button
             data-testid="bulk-duplicate"
             onClick={() => {
@@ -629,6 +698,7 @@ export default function Editor() {
         <ShapeEditPopover
           shape={editingShape}
           onClose={() => setEditingShape(null)}
+          onAddToCombat={() => addTokensToCombat([editingShape])}
           onUpdate={(patch) => {
             setShapes((arr) =>
               arr.map((s) => (s.id === editingShape.id ? { ...s, ...patch } : s)),
@@ -671,4 +741,12 @@ function fileToDataURL(file) {
 
 function cryptoRandom() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+// Captures the combat reducer dispatch so the editor (outside the provider's
+// consumer tree) can push selected map tokens into the tracker.
+function CombatDispatchBridge({ dispatchRef }) {
+  const { dispatch } = useCombat();
+  dispatchRef.current = dispatch;
+  return null;
 }

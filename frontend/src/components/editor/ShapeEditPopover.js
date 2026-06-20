@@ -13,7 +13,7 @@ import { Trash2, Swords, ImageIcon, Grid3x3, Copy, Eye, EyeOff } from "lucide-re
 
 const COLORS = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#A855F7", "#F3F2F0", "#0B0A09"];
 
-export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicate, onClose }) {
+export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicate, onClose, onAddToCombat }) {
   const [local, setLocal] = useState(shape);
   useEffect(() => setLocal(shape), [shape?.id]);
   if (!shape) return null;
@@ -288,6 +288,17 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicat
                 </div>
               </div>
             </button>
+            {isToken && onAddToCombat && (
+              <Button
+                data-testid="shape-add-combat-btn"
+                variant="ghost"
+                onClick={onAddToCombat}
+                className="text-red-300 hover:bg-red-500/10 hover:text-red-200 w-full justify-start"
+              >
+                <Swords className="w-4 h-4 mr-2" />
+                Add to Combat Tracker
+              </Button>
+            )}
             {onDuplicate && (
               <Button
                 data-testid="shape-duplicate-btn"
