@@ -78,6 +78,7 @@ export default function MapCanvas({
   const assetFileInputRef = useRef(null);
   const pendingAssetPosRef = useRef(null);
   const softErasePushedRef = useRef(false);
+  const [eraserHover, setEraserHover] = useState(null); // {x, y} when soft-erase tool is active
 
   // ---------- Helpers ----------
   const getMapCoords = (e) => {
@@ -254,6 +255,10 @@ export default function MapCanvas({
   };
 
   const onPointerMove = (e) => {
+    if (tool === "soft-erase" && !drawing) {
+      const p = getMapCoords(e);
+      if (p) setEraserHover(p);
+    }
     if (!drawing) return;
     const p = getMapCoords(e);
     if (!p) return;
@@ -594,13 +599,17 @@ export default function MapCanvas({
                   />
                 ))}
 
-              {/* Soft-erase cursor preview */}
-              {drawing && drawing.type === "soft-erase" && (
+              {/* Soft-erase cursor preview (both hover and drag) */}
+              {tool === "soft-erase" && (eraserHover || (drawing && drawing.type === "soft-erase")) && (
                 <div
-                  className="absolute pointer-events-none rounded-full border-2 border-emerald-400/60 bg-emerald-400/10"
+                  className="absolute pointer-events-none rounded-full border-2 border-emerald-400/70 bg-emerald-400/10"
                   style={{
-                    left: drawing.x - Math.max(6, brushSize * 3),
-                    top: drawing.y - Math.max(6, brushSize * 3),
+                    left:
+                      ((drawing && drawing.type === "soft-erase" ? drawing.x : eraserHover.x)) -
+                      Math.max(6, brushSize * 3),
+                    top:
+                      ((drawing && drawing.type === "soft-erase" ? drawing.y : eraserHover.y)) -
+                      Math.max(6, brushSize * 3),
                     width: Math.max(6, brushSize * 3) * 2,
                     height: Math.max(6, brushSize * 3) * 2,
                   }}
@@ -614,6 +623,7 @@ export default function MapCanvas({
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
                 onPointerCancel={onPointerUp}
+                onPointerLeave={() => setEraserHover(null)}
                 onDoubleClick={() => polygonPts && finishPolygon()}
                 className={`absolute inset-0 ${interactionEnabled ? "editable-overlay" : ""}`}
                 style={{

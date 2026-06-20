@@ -9,7 +9,8 @@ import AIRedrawDialog from "../components/editor/AIRedrawDialog";
 import NestedMapSheet from "../components/editor/NestedMapSheet";
 import { exportMapAsPng } from "../lib/exportMap";
 import ShapeEditPopover from "../components/editor/ShapeEditPopover";
-import CombatPanel from "../components/editor/CombatPanel";
+import CombatTrackerPanel from "../components/combat/CombatTrackerPanel";
+import { CombatProvider } from "../components/combat/CombatContext";
 import { ChevronLeft as ChevronLeftIcon } from "lucide-react";
 import {
   AlertDialog,
@@ -309,6 +310,7 @@ export default function Editor() {
   }
 
   return (
+    <CombatProvider storageKey={`combat_state_${campaignId}`}>
     <div
       className="h-screen w-screen overflow-hidden canvas-bg relative"
       data-testid="editor-page"
@@ -395,12 +397,7 @@ export default function Editor() {
       )}
 
       {combatOpen && (
-        <CombatPanel
-          shapes={shapes}
-          setShapes={setShapes}
-          onPushHistory={pushHistory}
-          onClose={() => setCombatOpen(false)}
-        />
+        <CombatTrackerPanel onClose={() => setCombatOpen(false)} />
       )}
 
       {selectedIds && selectedIds.size > 0 && (
@@ -588,6 +585,7 @@ export default function Editor() {
         />
       )}
     </div>
+    </CombatProvider>
   );
 }
 

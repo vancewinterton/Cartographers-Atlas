@@ -1,0 +1,37 @@
+{
+  "summary": "Frontend-only testing of the new Combat Tracker (CombatContext + CombatTrackerPanel + CombatantCard + CombatLog). 21 of 22 feature scenarios PASS end-to-end via Playwright on the public URL. ONE critical bug found: localStorage persistence is wiped on page reload due to a hydrate/persist useEffect race in CombatProvider — saved combatants/log/settings do not survive a refresh.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "CombatContext.CombatProvider",
+        "issue": "localStorage persistence race condition — on mount the persist useEffect runs in the same commit as the hydrate useEffect and overwrites the saved localStorage value with empty initialState before the HYDRATE dispatch is committed. Verified: localStorage shows {combatants:1} before reload, {combatants:0} immediately after reload, and {combatants:0} after the panel re-renders. Net effect: refreshing the editor page wipes all combatants, log, settings, and saved encounters. Listed as a required feature in the spec ('combatants, log, settings all restored').",
+        "selector": "combat_state_<campaignId> in localStorage",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix CombatProvider hydrate/persist race in /app/frontend/src/components/combat/CombatContext.js. Recommended fix: gate the persist effect using a state-derived 'hasHydrated' flag (e.g., a piece of reducer state set to true by the HYDRATE action) instead of a synchronously-set useRef, OR skip persist on the very first run when state is still deep-equal to initialState. Example: replace 'if (!hydrated.current) return;' with a useState flag flipped in a second useEffect that depends on the state being hydrated (or simply: const isInitial = state === initialState; if (isInitial) return;). Alternatively, write to localStorage only after the first state change actually originated from a user dispatch.",
+    "(Minor cleanup) Remove the empty no-op useEffect in CombatTrackerPanel.js lines 41-45 — comment says 'already handled by END_COMBAT', but the effect itself does nothing."
+  ],
+  "critical_code_review_comments": [
+    "CombatContext persist effect uses a useRef flag set synchronously in the hydrate effect. Because both effects fire in the same commit, persist sees hydrated.current=true but state=initialState (closure capture) and overwrites localStorage. Use a state-driven flag instead.",
+    "CombatantCard.js is 521 lines — exceeds the 700-line guideline but is approaching it; consider splitting HP-controls / attack-block / conditions-block sub-components if it grows.",
+    "CombatTrackerPanel.js has a dead useEffect (lines 41-45) that just contains a comment. Remove it.",
+    "executeAttack correctly doubles only the damage DICE on a nat 20 and not the modifier (verified by code review — base rolls + crit rolls + single modifier).",
+    "DUPLICATE_COMBATANT auto-increment uses regex /\\s+\\d+$/ to strip trailing index and picks max+1 — handles 'Goblin', 'Goblin 2', 'Goblin 3' correctly. Good.",
+    "ROLL_ALL_INIT logs each roll individually — log can grow quickly; pushLog already caps at 300 entries so fine."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "95% (21/22 scenarios pass; 1 critical persistence bug)"},
+  "test_credentials": "n/a — no auth in app",
+  "seed_data_creation": "Used existing 'wew' campaign card on the dashboard. Created TEST_Encounter saved encounter (will be cleaned up if main agent fixes the persistence bug and reloads; otherwise wiped automatically on next refresh).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All Combat Tracker features verified working in-session: Add PC/Add Enemy, Roll All Init (auto-sort by descending), Start Combat (Round 1 badge + amber highlight), Next Turn (cycles + auto-increments round, log entry '— Round 2 —'), Prev Turn, End Combat (round indicator hidden, button returns to 'Start Combat'), HP controls (-5/-1/+1/+5/Full), HP set via input + apply button, Allow Overheal setting actually allows HP > maxHp, Auto-Remove Dead, Attack rolling (single + multi-attack with [1/3][2/3][3/3] tags), Conditions (preset + custom via Enter), Duplicate (with auto-increment names), Remove, Save/Load encounters, Log tab with clear, Settings drawer with 4 toggles, Auto-roll initiative on add. Only persistence across reload fails. To retest the bug fix: add an enemy, reload, then open combat panel — combatant should still be there. Also verify localStorage key 'combat_state_<campaignId>' still contains the saved combatant after reload (use page.evaluate to inspect).",
+  "rca_of_the_issue": "RCA: CombatProvider uses a useRef('hydrated') to gate writes to localStorage. The hydrate useEffect runs, reads localStorage, dispatches HYDRATE, then sets hydrated.current = true synchronously. The persist useEffect (declared after hydrate) then runs in the SAME effect pass, sees hydrated.current = true, but its closure still has state === initialState because the HYDRATE dispatch hasn't been committed yet. So it writes initialState (empty) to localStorage, blowing away the saved data. The subsequent re-render (triggered by HYDRATE) would write the correct state back — BUT by then the saved data was already overwritten with empty values, and on a fresh reload there's nothing to recover. Reproduction: open combat panel, add any combatant, reload the editor page → combatant gone, localStorage key contains empty combatants array. Mitigation options: (1) move hydration into a useReducer initializer (lazy init: useReducer(reducer, initialState, init => readLocalStorage())) and start hydrated=true so the gate never opens until first user dispatch — cleanest. (2) Replace useRef with a useState flag flipped only after a subsequent render confirms hydration. (3) Skip persist write when state is structurally equal to initialState. Option (1) is recommended."
+}
