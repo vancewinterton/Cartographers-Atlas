@@ -35,12 +35,8 @@ export default function useMapPolling({
     let cancelled = false;
     let timer = null;
 
-    const tick = async () => {
-      if (cancelled) return;
-      if (paused || document.hidden) {
-        timer = setTimeout(tick, intervalMs);
-        return;
-      }
+    const poll = async () => {
+      if (cancelled || paused) return;
       try {
         const fresh = await Maps.get(mapId);
         if (cancelled) return;
@@ -51,16 +47,30 @@ export default function useMapPolling({
         }
       } catch {
         /* network error — silently retry next tick */
-      } finally {
-        if (!cancelled) timer = setTimeout(tick, intervalMs);
       }
     };
+
+    const tick = async () => {
+      if (cancelled) return;
+      await poll();
+      if (!cancelled) timer = setTimeout(tick, intervalMs);
+    };
+
+    // When the tab/window becomes visible or focused again, refresh immediately
+    // so a viewer that switched windows sees the latest state without waiting.
+    const onActive = () => {
+      if (!document.hidden) poll();
+    };
+    document.addEventListener("visibilitychange", onActive);
+    window.addEventListener("focus", onActive);
 
     // first tick is delayed by intervalMs so initial render isn't blocked
     timer = setTimeout(tick, intervalMs);
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onActive);
+      window.removeEventListener("focus", onActive);
     };
   }, [mapId, intervalMs, paused]);
 }

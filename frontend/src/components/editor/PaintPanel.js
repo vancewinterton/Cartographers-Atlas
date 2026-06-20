@@ -8,6 +8,7 @@ import {
   PaintbrushVertical,
   Brush,
   PenTool,
+  Eye,
 } from "lucide-react";
 
 /**
@@ -60,6 +61,18 @@ const VARIANTS = [
     sizeMult: 6,
     accent: "slate",
     color: "#0f172a",
+  },
+  {
+    id: "reveal",
+    label: "Reveal",
+    desc: "Erase only the fog of war to reveal an area (leaves your other paint)",
+    icon: Eye,
+    tool: "reveal",
+    variant: null,
+    opacity: 1,
+    sizeMult: 4,
+    accent: "emerald",
+    dmOnly: true,
   },
   {
     id: "spray",
@@ -147,6 +160,10 @@ const ACCENT_CLASSES = {
     active: "bg-red-500/15 text-red-300 ring-1 ring-red-500/40",
     idle: "text-stone-400 hover:bg-white/5 hover:text-red-300",
   },
+  emerald: {
+    active: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40",
+    idle: "text-stone-400 hover:bg-white/5 hover:text-emerald-300",
+  },
 };
 
 export default function PaintPanel({
@@ -160,11 +177,13 @@ export default function PaintPanel({
   setBrushOpacity,
   brushVariant,
   setBrushVariant,
+  hideReveal = false,
   onClose,
 }) {
+  const variants = hideReveal ? VARIANTS.filter((v) => !v.dmOnly) : VARIANTS;
   // Match active variant via (tool + variant) tuple
   const activeVariantId =
-    VARIANTS.find(
+    variants.find(
       (v) =>
         v.tool === tool && (v.tool !== "brush" || v.variant === brushVariant),
     )?.id || (tool === "brush" ? "brush" : null);
@@ -202,7 +221,7 @@ export default function PaintPanel({
 
       {/* Variant grid */}
       <div className="grid grid-cols-4 gap-1.5 p-3">
-        {VARIANTS.map((v) => {
+        {variants.map((v) => {
           const Icon = v.icon;
           const active = activeVariantId === v.id;
           const cls = ACCENT_CLASSES[v.accent] || ACCENT_CLASSES.amber;

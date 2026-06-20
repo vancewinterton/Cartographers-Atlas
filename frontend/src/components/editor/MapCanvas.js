@@ -96,48 +96,46 @@ export default function MapCanvas({
   const isPanTool = tool === "pan";
   const interactionEnabled = !isPanTool;
 
+  // Middle-mouse pan — works anywhere on the canvas (even over a grid/token)
+  // because it's wired as a capture-phase handler on the canvas content wrapper.
+  const startMiddlePan = (e) => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const wrapEl = e.currentTarget.closest(".react-transform-wrapper");
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const contentEl = wrapEl?.querySelector(".react-transform-component");
+    const startMatrix = contentEl ? new DOMMatrix(getComputedStyle(contentEl).transform) : null;
+    const startTX = startMatrix?.e || 0;
+    const startTY = startMatrix?.f || 0;
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (contentEl && startMatrix) {
+        contentEl.style.transform = `matrix(${startMatrix.a}, 0, 0, ${startMatrix.d}, ${startTX + dx}, ${startTY + dy})`;
+      }
+    };
+    const onUp = (ev) => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (transformRef.current && (dx || dy)) {
+        const curScale = transformRef.current?.state?.scale ?? scale;
+        const curX = (transformRef.current?.state?.positionX ?? startTX) + dx;
+        const curY = (transformRef.current?.state?.positionY ?? startTY) + dy;
+        transformRef.current.setTransform(curX, curY, curScale, 0);
+      }
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
   // ---------- Drawing handlers ----------
   const onPointerDown = (e) => {
-    // Middle-mouse pan: always allowed regardless of current tool
-    if (e.button === 1) {
-      e.preventDefault();
-      const wrapEl = e.currentTarget.closest(".react-transform-wrapper");
-      const startX = e.clientX;
-      const startY = e.clientY;
-      // Snapshot current transform from the live DOM matrix to avoid library internal APIs
-      const contentEl = wrapEl?.querySelector(".react-transform-component");
-      const startMatrix = contentEl ? new DOMMatrix(getComputedStyle(contentEl).transform) : null;
-      const startTX = startMatrix?.e || 0;
-      const startTY = startMatrix?.f || 0;
-      const onMove = (ev) => {
-        const dx = ev.clientX - startX;
-        const dy = ev.clientY - startY;
-        if (contentEl) {
-          contentEl.style.transform = `matrix(${startMatrix.a}, 0, 0, ${startMatrix.d}, ${startTX + dx}, ${startTY + dy})`;
-        }
-      };
-      const onUp = (ev) => {
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
-        // Sync the library's internal position to the new translation we set manually
-        const dx = ev.clientX - startX;
-        const dy = ev.clientY - startY;
-        if (transformRef.current && (dx || dy)) {
-          const s = scale;
-          // Use library's setTransform to commit position so it remembers
-          // transformRef.current.state may not be available — best-effort
-          const curScale = transformRef.current?.state?.scale ?? s;
-          const curX = (transformRef.current?.state?.positionX ?? startTX) + dx;
-          const curY = (transformRef.current?.state?.positionY ?? startTY) + dy;
-          transformRef.current.setTransform(curX, curY, curScale, 0);
-        }
-      };
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
-      return;
-    }
+    if (e.button === 1) return; // handled by startMiddlePan capture handler
     if (isPanTool) return;
-    if (e.button !== 0) return;
     e.target.setPointerCapture?.(e.pointerId);
     const p = getMapCoords(e);
     if (!p) return;
@@ -189,12 +187,13 @@ export default function MapCanvas({
       return;
     }
 
-    if (tool === "soft-erase") {
+    if (tool === "soft-erase" || tool === "reveal") {
       onPushHistory();
       softErasePushedRef.current = true;
-      applySoftErase(p);
+      const fogOnly = tool === "reveal";
+      applySoftErase(p, fogOnly);
       // begin a drawing pseudo-state so onPointerMove keeps erasing
-      setDrawing({ type: "soft-erase", x: p.x, y: p.y });
+      setDrawing({ type: "soft-erase", x: p.x, y: p.y, fogOnly });
       return;
     }
 
@@ -276,7 +275,7 @@ export default function MapCanvas({
   };
 
   const onPointerMove = (e) => {
-    if (tool === "soft-erase" && !drawing) {
+    if ((tool === "soft-erase" || tool === "reveal") && !drawing) {
       const p = getMapCoords(e);
       if (p) setEraserHover(p);
     }
@@ -286,7 +285,7 @@ export default function MapCanvas({
     if (drawing.type === "brush") {
       setDrawing({ ...drawing, points: [...drawing.points, p.x, p.y] });
     } else if (drawing.type === "soft-erase") {
-      applySoftErase(p);
+      applySoftErase(p, drawing.fogOnly);
       setEraserHover(p);
       setDrawing({ ...drawing, x: p.x, y: p.y });
     } else if (drawing.type === "erase-drag") {
@@ -372,14 +371,18 @@ export default function MapCanvas({
   // Soft erase: drag-based eraser. ONLY affects brush strokes — leaves all other shapes/pins
   // alone. Splits brush strokes wherever the circle passes through so erased middles create
   // real gaps. To delete other shapes use the Delete Shape tool.
-  const applySoftErase = (p) => {
+  const applySoftErase = (p, fogOnly = false) => {
     const r = Math.max(6, brushSize * 3);
     const r2 = r * r;
     const visibleLayerIds = new Set(layers.filter((l) => l.visible && !l.locked).map((l) => l.id));
     let changed = false;
     const next = [];
     for (const s of shapes) {
-      if (s.type !== "brush" || !visibleLayerIds.has(s.layerId)) {
+      if (
+        s.type !== "brush" ||
+        (fogOnly && s.variant !== "fog") ||
+        !visibleLayerIds.has(s.layerId)
+      ) {
         next.push(s);
         continue;
       }
@@ -498,6 +501,7 @@ export default function MapCanvas({
             <div
               className="relative shadow-2xl"
               data-canvas-content="true"
+              onPointerDownCapture={startMiddlePan}
               style={{ width: W, height: H, background: "#1a1714" }}
             >
               {mapDoc.image_data ? (
@@ -692,10 +696,14 @@ export default function MapCanvas({
                   ))}
               </svg>
 
-              {/* Soft-erase cursor preview (both hover and drag) */}
-              {tool === "soft-erase" && (eraserHover || (drawing && drawing.type === "soft-erase")) && (
+              {/* Soft-erase / Reveal cursor preview (both hover and drag) */}
+              {(tool === "soft-erase" || tool === "reveal") && (eraserHover || (drawing && drawing.type === "soft-erase")) && (
                 <div
-                  className="absolute pointer-events-none rounded-full border-2 border-emerald-400/70 bg-emerald-400/10"
+                  className={`absolute pointer-events-none rounded-full border-2 ${
+                    tool === "reveal"
+                      ? "border-amber-400/80 bg-amber-400/10"
+                      : "border-emerald-400/70 bg-emerald-400/10"
+                  }`}
                   style={{
                     left:
                       ((drawing && drawing.type === "soft-erase" ? drawing.x : eraserHover.x)) -
@@ -1123,7 +1131,7 @@ function ShapeEl({ s, preview, viewer }) {
           strokeWidth={sw}
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeOpacity={viewer ? 0.92 : 0.3}
+          strokeOpacity={viewer ? 1 : 0.32}
         />
       );
     }
@@ -1308,7 +1316,7 @@ function cursorFor(tool) {
   if (tool === "token") return "copy";
   if (tool === "hero-token") return "copy";
   if (tool === "asset") return "copy";
-  if (tool === "soft-erase") return "cell";
+  if (tool === "soft-erase" || tool === "reveal") return "cell";
   if (tool === "erase") return "not-allowed";
   if (tool === "text") return "text";
   if (tool === "select") return "crosshair";

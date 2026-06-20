@@ -7,6 +7,7 @@ import TokenLibraryPanel from "../components/editor/TokenLibraryPanel";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet";
 import { Compass, MapPinned, ArrowUpRight, ExternalLink, Wifi, Hand, Paintbrush, Library } from "lucide-react";
 import { Button } from "../components/ui/button";
+import AdSlot from "../components/AdSlot";
 import useMapPolling from "../lib/useMapPolling";
 
 const PAINT_TOOLS = new Set(["brush", "soft-erase", "erase"]);
@@ -274,6 +275,7 @@ export default function SharePage() {
           setBrushOpacity={setBrushOpacity}
           brushVariant={brushVariant}
           setBrushVariant={setBrushVariant}
+          hideReveal
           onClose={() => setPaintOpen(false)}
         />
       )}
@@ -390,6 +392,16 @@ export default function SharePage() {
       >
         <ExternalLink className="w-3 h-3" /> Make your own atlas
       </a>
+
+      {/* Skinny dismissible ad banner — kept low-profile so it never blocks play */}
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 w-[min(560px,70vw)] pointer-events-auto">
+        <AdSlot
+          orientation="horizontal"
+          dismissible
+          testId="share-ad-bottom"
+          className="glass !border-white/10 h-[52px]"
+        />
+      </div>
     </div>
   );
 }

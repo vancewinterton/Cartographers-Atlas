@@ -26,6 +26,14 @@ export const Share = {
   get: (token) => api.get(`/share/${token}`).then((r) => r.data),
 };
 
+export const Presets = {
+  list: () => api.get("/presets").then((r) => r.data),
+  use: (id) => api.post(`/presets/${id}/use`, {}, { timeout: 60000 }).then((r) => r.data),
+  saveFrom: (campaignId) =>
+    api.post(`/campaigns/${campaignId}/save-as-preset`, {}, { timeout: 60000 }).then((r) => r.data),
+  remove: (id) => api.delete(`/presets/${id}`).then((r) => r.data),
+};
+
 export const Maps = {
   get: (id) => api.get(`/maps/${id}`).then((r) => r.data),
   create: (data) => api.post("/maps", data).then((r) => r.data),

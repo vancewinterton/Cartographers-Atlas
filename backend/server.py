@@ -113,6 +113,24 @@ class CampaignImportRequest(BaseModel):
     rename: Optional[str] = None  # optionally rename on import
 
 
+class Preset(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str = ""
+    cover_image: Optional[str] = None
+    data: Dict[str, Any] = Field(default_factory=dict)  # full campaign export bundle
+    created_at: str = Field(default_factory=now_iso)
+
+
+class PresetMeta(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    cover_image: Optional[str] = None
+    created_at: str
+
+
 # ---------- Helpers ----------
 def strip_data_url(b64: str) -> str:
     if b64.startswith("data:") and "," in b64:
@@ -212,12 +230,10 @@ async def export_campaign(campaign_id: str):
     return CampaignExport(campaign=camp_clean, maps=maps)
 
 
-@api_router.post("/campaigns/import", response_model=Campaign)
-async def import_campaign(payload: CampaignImportRequest):
-    """Import a previously-exported campaign JSON. Generates fresh IDs for the
-    campaign and every map, remaps parent_map_id / linked_map_id so the nested
-    structure stays intact."""
-    data = payload.data or {}
+async def _clone_export_into_campaign(data: Dict[str, Any], rename: Optional[str] = None) -> Campaign:
+    """Clone an exported campaign bundle into a brand-new campaign with fresh IDs.
+    Shared by the import endpoint and the preset 'use template' endpoint."""
+    data = data or {}
     src_campaign = data.get("campaign")
     src_maps = data.get("maps") or []
     if not src_campaign or not isinstance(src_maps, list):
@@ -228,7 +244,7 @@ async def import_campaign(payload: CampaignImportRequest):
 
     new_campaign = Campaign(
         id=new_campaign_id,
-        name=(payload.rename or src_campaign.get("name", "Imported Campaign")).strip()
+        name=(rename or src_campaign.get("name", "Imported Campaign")).strip()
         or "Imported Campaign",
         description=src_campaign.get("description", ""),
         cover_image=src_campaign.get("cover_image"),
@@ -264,12 +280,58 @@ async def import_campaign(payload: CampaignImportRequest):
     if new_maps:
         await db.maps.insert_many(new_maps)
 
-    # Guarantee a root map exists
     if not any(m.get("parent_map_id") is None for m in new_maps):
         root = MapDoc(campaign_id=new_campaign_id, name="World Map")
         await db.maps.insert_one(root.model_dump())
 
     return new_campaign
+
+
+@api_router.post("/campaigns/import", response_model=Campaign)
+async def import_campaign(payload: CampaignImportRequest):
+    """Import a previously-exported campaign JSON. Generates fresh IDs for the
+    campaign and every map, remaps parent_map_id / linked_map_id so the nested
+    structure stays intact."""
+    return await _clone_export_into_campaign(payload.data, payload.rename)
+
+
+# ---------- Preset / Template Routes ----------
+@api_router.get("/presets", response_model=List[PresetMeta])
+async def list_presets():
+    docs = await db.presets.find({}, {"_id": 0, "data": 0}).sort("created_at", 1).to_list(200)
+    return [PresetMeta(**d) for d in docs]
+
+
+@api_router.post("/presets/{preset_id}/use", response_model=Campaign)
+async def use_preset(preset_id: str):
+    preset = await db.presets.find_one({"id": preset_id}, {"_id": 0})
+    if not preset:
+        raise HTTPException(404, "Preset not found")
+    return await _clone_export_into_campaign(preset.get("data") or {}, None)
+
+
+@api_router.post("/campaigns/{campaign_id}/save-as-preset", response_model=PresetMeta)
+async def save_campaign_as_preset(campaign_id: str):
+    camp = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not camp:
+        raise HTTPException(404, "Campaign not found")
+    maps = await db.maps.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(500)
+    camp_clean = {**camp, "share_token": None}
+    bundle = CampaignExport(campaign=camp_clean, maps=maps).model_dump()
+    preset = Preset(
+        name=camp.get("name", "Untitled Campaign"),
+        description=camp.get("description", ""),
+        cover_image=camp.get("cover_image"),
+        data=bundle,
+    )
+    await db.presets.insert_one(preset.model_dump())
+    return PresetMeta(**preset.model_dump())
+
+
+@api_router.delete("/presets/{preset_id}")
+async def delete_preset(preset_id: str):
+    await db.presets.delete_one({"id": preset_id})
+    return {"ok": True}
 
 
 # ---------- Map Routes ----------
@@ -425,6 +487,91 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+@app.on_event("startup")
+async def seed_presets():
+    """Seed a starter template campaign the first time the app boots so the
+    Templates gallery isn't empty. DMs add their own via 'Save as Template'."""
+    try:
+        existing = await db.presets.count_documents({})
+        if existing:
+            return
+        root_id = str(uuid.uuid4())
+        dungeon_id = str(uuid.uuid4())
+        dungeon_pin_id = str(uuid.uuid4())
+        bundle = {
+            "format_version": 1,
+            "campaign": {
+                "name": "Starter — The Borderlands",
+                "description": "A ready-to-run starter world with a town, a road, and a linked dungeon. Open it and make it yours.",
+                "cover_image": None,
+            },
+            "maps": [
+                {
+                    "id": root_id,
+                    "parent_map_id": None,
+                    "name": "World Map",
+                    "image_data": None,
+                    "image_width": 1600,
+                    "image_height": 1000,
+                    "layers": [
+                        {
+                            "id": "L1",
+                            "name": "Layer 1",
+                            "visible": True,
+                            "locked": False,
+                            "shapes": [
+                                {"id": str(uuid.uuid4()), "type": "text", "layerId": "L1",
+                                 "x": 360, "y": 240, "size": 40, "color": "#D97706", "text": "Oakhaven"},
+                                {"id": str(uuid.uuid4()), "type": "text", "layerId": "L1",
+                                 "x": 980, "y": 620, "size": 36, "color": "#D97706", "text": "The Deep Barrow"},
+                            ],
+                        }
+                    ],
+                    "pins": [
+                        {"id": str(uuid.uuid4()), "x": 420, "y": 320, "label": "Oakhaven",
+                         "description": "A small frontier town. Start here.", "color": "#D97706",
+                         "icon": "town", "linked_map_id": None},
+                        {"id": dungeon_pin_id, "x": 1040, "y": 700, "label": "The Deep Barrow",
+                         "description": "An ancient dungeon. Click to descend.", "color": "#A855F7",
+                         "icon": "dungeon", "linked_map_id": dungeon_id},
+                    ],
+                },
+                {
+                    "id": dungeon_id,
+                    "parent_map_id": root_id,
+                    "parent_pin_id": dungeon_pin_id,
+                    "name": "The Deep Barrow",
+                    "image_data": None,
+                    "image_width": 1600,
+                    "image_height": 1000,
+                    "layers": [
+                        {
+                            "id": "L1",
+                            "name": "Layer 1",
+                            "visible": True,
+                            "locked": False,
+                            "shapes": [
+                                {"id": str(uuid.uuid4()), "type": "text", "layerId": "L1",
+                                 "x": 600, "y": 120, "size": 36, "color": "#A855F7", "text": "Entrance Hall"},
+                            ],
+                        }
+                    ],
+                    "pins": [],
+                },
+            ],
+        }
+        preset = Preset(
+            name="Starter — The Borderlands",
+            description="A ready-to-run starter world with a town and a linked dungeon.",
+            cover_image=None,
+            data=bundle,
+        )
+        await db.presets.insert_one(preset.model_dump())
+        logger.info("Seeded starter preset campaign")
+    except Exception as e:
+        logger.warning(f"Preset seed skipped: {e}")
 
 
 @app.on_event("shutdown")

@@ -21,6 +21,7 @@ import {
   Swords,
   Package,
   Library,
+  Wand2,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import {
@@ -31,7 +32,7 @@ import {
   DialogTitle as ShareDialogTitle,
 } from "../ui/dialog";
 import { Switch } from "../ui/switch";
-import { Campaigns } from "../../lib/api";
+import { Campaigns, Presets } from "../../lib/api";
 import { toast } from "sonner";
 
 export default function TopBar({
@@ -115,6 +116,16 @@ export default function TopBar({
     } else {
       // Last resort: show a prompt with the URL so the user can copy manually
       toast.error("Couldn't auto-copy — the URL is shown in the input above");
+    }
+  };
+
+  const saveAsTemplate = async () => {
+    try {
+      toast.info("Publishing as a template…");
+      await Presets.saveFrom(campaign.id);
+      toast.success("Saved to the Templates gallery on the dashboard");
+    } catch (e) {
+      toast.error("Could not save as template");
     }
   };
 
@@ -235,6 +246,16 @@ export default function TopBar({
         >
           <Package className="w-4 h-4 mr-2" />
           Export Campaign
+        </Button>
+        <Button
+          data-testid="save-template-btn"
+          variant="ghost"
+          onClick={saveAsTemplate}
+          title="Publish this campaign as a reusable template in the dashboard gallery"
+          className="text-stone-300 hover:bg-white/5 hover:text-amber-500 h-9"
+        >
+          <Wand2 className="w-4 h-4 mr-2" />
+          Save as Template
         </Button>
         <Button
           data-testid="combat-btn"
