@@ -403,6 +403,77 @@ export default function Editor() {
         />
       )}
 
+      {selectedIds && selectedIds.size > 0 && (
+        <div
+          data-testid="selection-actionbar"
+          className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 glass rounded-2xl px-3 py-2 flex items-center gap-2"
+        >
+          <span className="font-mono-cart text-[10px] uppercase tracking-widest text-stone-400 px-1">
+            {selectedIds.size} selected
+          </span>
+          <div className="h-5 w-px bg-white/10" />
+          <button
+            data-testid="bulk-hide"
+            onClick={() => {
+              pushHistory();
+              const anyVisible = shapes.some((s) => selectedIds.has(s.id) && !s.hidden);
+              setShapes((arr) =>
+                arr.map((s) => (selectedIds.has(s.id) ? { ...s, hidden: anyVisible } : s)),
+              );
+            }}
+            className="px-3 py-1.5 rounded-lg bg-black/30 hover:bg-amber-500/10 hover:text-amber-500 text-stone-200 text-xs font-medium transition"
+          >
+            Hide / Show
+          </button>
+          <button
+            data-testid="bulk-duplicate"
+            onClick={() => {
+              pushHistory();
+              const newIds = new Set();
+              setShapes((arr) => {
+                const copies = arr
+                  .filter((s) => selectedIds.has(s.id))
+                  .map((s) => {
+                    const id = cryptoRandom();
+                    newIds.add(id);
+                    return {
+                      ...s,
+                      id,
+                      x: (s.x || 0) + 30,
+                      y: (s.y || 0) + 30,
+                      trail: undefined,
+                    };
+                  });
+                return [...arr, ...copies];
+              });
+              setTimeout(() => setSelectedIds(newIds), 0);
+            }}
+            className="px-3 py-1.5 rounded-lg bg-black/30 hover:bg-amber-500/10 hover:text-amber-500 text-stone-200 text-xs font-medium transition"
+          >
+            Duplicate
+          </button>
+          <button
+            data-testid="bulk-delete"
+            onClick={() => {
+              pushHistory();
+              setShapes((arr) => arr.filter((s) => !selectedIds.has(s.id)));
+              setSelectedIds(new Set());
+            }}
+            className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-300 text-xs font-medium transition"
+          >
+            Delete
+          </button>
+          <button
+            data-testid="bulk-clear"
+            onClick={() => setSelectedIds(new Set())}
+            className="px-2 py-1.5 text-stone-500 hover:text-stone-200 text-xs transition"
+            title="Clear selection (Esc)"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {aiRegion && (
         <AIRedrawDialog
           region={aiRegion}

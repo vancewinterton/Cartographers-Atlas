@@ -84,6 +84,65 @@ export default function CombatPanel({ shapes, setShapes, onPushHistory, onClose 
   };
 
   const [damageAmt, setDamageAmt] = useState({});
+  const [expanded, setExpanded] = useState({});
+
+  // Tiny dice formula parser: "2d6+3", "1d20", "d8-1", "4" — returns {rolls:[...], total}
+  const rollFormula = (formula) => {
+    const m = String(formula || "").trim().match(/^(\d*)d(\d+)\s*([+-]\s*\d+)?$/i);
+    if (!m) {
+      const flat = parseInt(String(formula || "").trim(), 10);
+      return Number.isFinite(flat) ? { rolls: [flat], total: flat } : { rolls: [], total: 0 };
+    }
+    const num = m[1] ? parseInt(m[1], 10) : 1;
+    const sides = parseInt(m[2], 10);
+    const mod = m[3] ? parseInt(m[3].replace(/\s/g, ""), 10) : 0;
+    const rolls = Array.from({ length: num }, () => 1 + Math.floor(Math.random() * sides));
+    const total = rolls.reduce((a, b) => a + b, 0) + mod;
+    return { rolls, total, mod, num, sides };
+  };
+
+  const rollAttack = (tokenId, atk) => {
+    const hitBonus = parseInt(atk.hit || "0", 10) || 0;
+    const hitRoll = 1 + Math.floor(Math.random() * 20);
+    const hitTotal = hitRoll + hitBonus;
+    const dmg = rollFormula(atk.damage || "1d6");
+    const isCrit = hitRoll === 20;
+    const label = `${atk.name || "Attack"}: 🎯 ${hitRoll}${hitBonus ? (hitBonus > 0 ? `+${hitBonus}` : hitBonus) : ""} = ${hitTotal}${isCrit ? " CRIT!" : ""} | ⚔ ${atk.damage || "1d6"} = ${dmg.total}`;
+    setRollLog((prev) => [{ id: Math.random().toString(36).slice(2), label, rolls: [hitTotal, dmg.total], total: dmg.total, attack: true }, ...prev].slice(0, 12));
+  };
+
+  const addAttack = (tokenId) => {
+    setShapes((arr) =>
+      arr.map((s) =>
+        s.id === tokenId
+          ? { ...s, attacks: [...(s.attacks || []), { name: "Attack", hit: "5", damage: "1d8+3" }] }
+          : s,
+      ),
+    );
+    setExpanded((e) => ({ ...e, [tokenId]: true }));
+  };
+
+  const updateAttack = (tokenId, idx, patch) => {
+    setShapes((arr) =>
+      arr.map((s) => {
+        if (s.id !== tokenId) return s;
+        const atks = [...(s.attacks || [])];
+        atks[idx] = { ...atks[idx], ...patch };
+        return { ...s, attacks: atks };
+      }),
+    );
+  };
+
+  const removeAttack = (tokenId, idx) => {
+    setShapes((arr) =>
+      arr.map((s) => {
+        if (s.id !== tokenId) return s;
+        const atks = [...(s.attacks || [])];
+        atks.splice(idx, 1);
+        return { ...s, attacks: atks };
+      }),
+    );
+  };
 
   return (
     <div
@@ -225,7 +284,70 @@ export default function CombatPanel({ shapes, setShapes, onPushHistory, onClose 
                     {rollLog[0].total}
                   </button>
                 )}
+                <button
+                  data-testid={`combat-expand-${t.id}`}
+                  onClick={() =>
+                    setExpanded((e) => ({ ...e, [t.id]: !e[t.id] }))
+                  }
+                  className="px-1.5 h-6 rounded-md text-stone-400 hover:text-amber-500 hover:bg-white/5 transition text-[10px]"
+                  title="Attacks"
+                >
+                  {expanded[t.id] ? "▾" : "▸"} Atk
+                </button>
               </div>
+              {expanded[t.id] && (
+                <div className="mt-2 space-y-1.5 pl-2 border-l border-amber-700/30">
+                  {(t.attacks || []).map((atk, idx) => (
+                    <div key={idx} className="flex items-center gap-1">
+                      <Input
+                        data-testid={`atk-name-${t.id}-${idx}`}
+                        value={atk.name || ""}
+                        onChange={(e) => updateAttack(t.id, idx, { name: e.target.value })}
+                        placeholder="Attack"
+                        className="bg-black/30 border-white/10 h-6 text-[11px] px-1.5 flex-1 min-w-0"
+                      />
+                      <Input
+                        data-testid={`atk-hit-${t.id}-${idx}`}
+                        value={atk.hit ?? ""}
+                        onChange={(e) => updateAttack(t.id, idx, { hit: e.target.value })}
+                        placeholder="+5"
+                        title="To-hit modifier"
+                        className="bg-black/30 border-white/10 h-6 text-[10px] px-1 w-10 text-center font-mono-cart"
+                      />
+                      <Input
+                        data-testid={`atk-dmg-${t.id}-${idx}`}
+                        value={atk.damage ?? ""}
+                        onChange={(e) => updateAttack(t.id, idx, { damage: e.target.value })}
+                        placeholder="2d6+3"
+                        title="Damage dice"
+                        className="bg-black/30 border-white/10 h-6 text-[10px] px-1 w-14 text-center font-mono-cart"
+                      />
+                      <button
+                        data-testid={`atk-roll-${t.id}-${idx}`}
+                        onClick={() => rollAttack(t.id, atk)}
+                        className="px-2 h-6 rounded-md bg-amber-600 hover:bg-amber-500 text-stone-950 text-[10px] font-bold uppercase tracking-wider transition"
+                        title="Roll to hit + damage"
+                      >
+                        Roll
+                      </button>
+                      <button
+                        onClick={() => removeAttack(t.id, idx)}
+                        className="text-stone-500 hover:text-red-400 px-1"
+                        title="Remove attack"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    data-testid={`atk-add-${t.id}`}
+                    onClick={() => addAttack(t.id)}
+                    className="text-[10px] font-mono-cart uppercase tracking-wider text-amber-500 hover:text-amber-400 transition px-1"
+                  >
+                    + Add attack
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}

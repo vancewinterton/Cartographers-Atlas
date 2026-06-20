@@ -327,7 +327,7 @@ function toolHelp(t) {
     grid: "Click and drag to place a grid. Stroke size sets the cell size. Drag the grid to reposition it.",
     "ai-redraw":
       "Drag to select an area, then describe what should appear there. Choose Nano Banana (image edit) or GPT Image 1 (generate).",
-    "soft-erase": "Drag over brush strokes to softly erase parts of them. Stroke size sets eraser radius.",
+    "soft-erase": "Drag over brush strokes — anything inside the circle gets erased. Only affects freehand brush; use Delete Shape for everything else.",
     erase: "Click a shape, pin, token, asset, or label to delete it.",
   };
   return help[t] || "";

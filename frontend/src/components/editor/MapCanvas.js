@@ -335,10 +335,9 @@ export default function MapCanvas({
     setDrawing(null);
   };
 
-  // Soft erase: drag-based partial eraser. Walks the brush points and **splits** the stroke
-  // wherever the eraser circle passes through — leaving real gaps instead of bridging the
-  // remaining points with a straight line. Non-brush shapes / pins are still deleted when
-  // intersected.
+  // Soft erase: drag-based eraser. ONLY affects brush strokes — leaves all other shapes/pins
+  // alone. Splits brush strokes wherever the circle passes through so erased middles create
+  // real gaps. To delete other shapes use the Delete Shape tool.
   const applySoftErase = (p) => {
     const r = Math.max(6, brushSize * 3);
     const r2 = r * r;
@@ -346,50 +345,31 @@ export default function MapCanvas({
     let changed = false;
     const next = [];
     for (const s of shapes) {
-      if (!visibleLayerIds.has(s.layerId)) {
+      if (s.type !== "brush" || !visibleLayerIds.has(s.layerId)) {
         next.push(s);
         continue;
       }
-      if (s.type === "brush") {
-        const segments = [[]];
-        for (let i = 0; i < s.points.length; i += 2) {
-          const dx = s.points[i] - p.x;
-          const dy = s.points[i + 1] - p.y;
-          const inside = dx * dx + dy * dy <= r2;
-          if (inside) {
-            changed = true;
-            if (segments[segments.length - 1].length > 0) segments.push([]);
-          } else {
-            segments[segments.length - 1].push(s.points[i], s.points[i + 1]);
-          }
+      const segments = [[]];
+      for (let i = 0; i < s.points.length; i += 2) {
+        const dx = s.points[i] - p.x;
+        const dy = s.points[i + 1] - p.y;
+        const inside = dx * dx + dy * dy <= r2;
+        if (inside) {
+          changed = true;
+          if (segments[segments.length - 1].length > 0) segments.push([]);
+        } else {
+          segments[segments.length - 1].push(s.points[i], s.points[i + 1]);
         }
-        const valid = segments.filter((seg) => seg.length >= 4);
-        if (valid.length === 0) continue;
-        if (valid.length === 1 && valid[0].length === s.points.length) {
-          next.push(s);
-          continue;
-        }
-        next.push(...valid.map((seg, idx) => ({ ...s, id: idx === 0 ? s.id : rid(), points: seg })));
+      }
+      const valid = segments.filter((seg) => seg.length >= 4);
+      if (valid.length === 0) continue;
+      if (valid.length === 1 && valid[0].length === s.points.length) {
+        next.push(s);
         continue;
       }
-      if (
-        (s.type === "rect" ||
-          s.type === "circle" ||
-          s.type === "polygon" ||
-          s.type === "text" ||
-          s.type === "image" ||
-          s.type === "ai-region") &&
-        circleIntersectsShape(s, p, r)
-      ) {
-        changed = true;
-        continue;
-      }
-      next.push(s);
+      next.push(...valid.map((seg, idx) => ({ ...s, id: idx === 0 ? s.id : rid(), points: seg })));
     }
     if (changed) setShapes(next);
-
-    const remainingPins = pins.filter((pn) => Math.hypot(pn.x - p.x, pn.y - p.y) > r);
-    if (remainingPins.length !== pins.length) setPins(remainingPins);
   };
 
   const finishPolygon = () => {
