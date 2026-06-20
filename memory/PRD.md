@@ -57,6 +57,16 @@ Build a D&D campaign map editor inspired by mapgenie.io/skyrim that:
 - Combat log captures: initiative, turns, rounds, attacks, damage, HP changes, deaths
 - Tested: 22/22 scenarios pass (testing_agent_v3 iteration_2 + persistence retest)
 
+## Implemented (2026-02-20 — Map↔Tracker bridge + Campaign Save/Share)
+- **Map enemies → Combat Tracker auto-import**: new `IMPORT_FROM_MAP` reducer action + "Import N tokens from map" button in tracker. Reads token color/label/hp/ac/initBonus/attacks. Idempotent via `sourceTokenId` (re-clicking is a no-op).
+- **Color-based PC vs enemy classification**: blue-ish tokens → PC, anything else → enemy.
+- **Inline attack result block** on each combatant card: shows d20 hit roll, bonus, total, CRIT/FUMBLE, damage dice rolls, modifier, total damage, and a "N hits · M dmg" summary. Multi-attack shows separate `1/3 · 2/3 · 3/3` lines.
+- **Campaign Save / Share** (export + import):
+  - Backend: `GET /api/campaigns/{id}/export` bundles campaign + all maps (with images, pins, shapes, sub-maps) into JSON. `POST /api/campaigns/import` accepts the JSON, generates fresh UUIDs, remaps `parent_map_id` and pin `linked_map_id` so nested structure stays intact, strips share token.
+  - Topbar "Export Campaign" button downloads `<campaign>.cartographer.json`. Dashboard "Import" button (file picker) creates a new campaign and navigates to it.
+- Tested: backend 6/6 pytest pass (export/import round-trip + edge cases). Frontend 11/11 scenarios pass.
+
+
 
 ## Backlog
 - P1: fal.ai or alternate AI upscaler when user is ready to pay or wants user-supplied keys
