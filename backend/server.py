@@ -99,6 +99,18 @@ class AIRedrawResponse(BaseModel):
     image_base64: str
 
 
+class CampaignExport(BaseModel):
+    format_version: int = 1
+    exported_at: str = Field(default_factory=now_iso)
+    campaign: Dict[str, Any]
+    maps: List[Dict[str, Any]]
+
+
+class CampaignImportRequest(BaseModel):
+    data: Dict[str, Any]
+    rename: Optional[str] = None  # optionally rename on import
+
+
 # ---------- Helpers ----------
 def strip_data_url(b64: str) -> str:
     if b64.startswith("data:") and "," in b64:
@@ -183,6 +195,79 @@ async def get_shared_campaign(share_token: str):
         raise HTTPException(404, "Shared campaign not found or sharing disabled")
     maps = await db.maps.find({"campaign_id": doc["id"]}, {"_id": 0}).to_list(500)
     return {"campaign": Campaign(**doc), "maps": [MapDoc(**m) for m in maps]}
+
+
+@api_router.get("/campaigns/{campaign_id}/export", response_model=CampaignExport)
+async def export_campaign(campaign_id: str):
+    """Bundle a campaign + all of its maps (images, pins, shapes, sub-maps) into a
+    single JSON blob the user can download and hand off to another DM."""
+    camp = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not camp:
+        raise HTTPException(404, "Campaign not found")
+    maps = await db.maps.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(500)
+    # strip share token from the export — the importer should generate their own
+    camp_clean = {**camp, "share_token": None}
+    return CampaignExport(campaign=camp_clean, maps=maps)
+
+
+@api_router.post("/campaigns/import", response_model=Campaign)
+async def import_campaign(payload: CampaignImportRequest):
+    """Import a previously-exported campaign JSON. Generates fresh IDs for the
+    campaign and every map, remaps parent_map_id / linked_map_id so the nested
+    structure stays intact."""
+    data = payload.data or {}
+    src_campaign = data.get("campaign")
+    src_maps = data.get("maps") or []
+    if not src_campaign or not isinstance(src_maps, list):
+        raise HTTPException(400, "Invalid campaign export file")
+
+    new_campaign_id = str(uuid.uuid4())
+    id_map = {m.get("id"): str(uuid.uuid4()) for m in src_maps if m.get("id")}
+
+    new_campaign = Campaign(
+        id=new_campaign_id,
+        name=(payload.rename or src_campaign.get("name", "Imported Campaign")).strip()
+        or "Imported Campaign",
+        description=src_campaign.get("description", ""),
+        cover_image=src_campaign.get("cover_image"),
+        share_token=None,
+    )
+    await db.campaigns.insert_one(new_campaign.model_dump())
+
+    new_maps: List[Dict[str, Any]] = []
+    for m in src_maps:
+        old_id = m.get("id")
+        new_id = id_map.get(old_id, str(uuid.uuid4()))
+        parent_old = m.get("parent_map_id")
+        parent_new = id_map.get(parent_old) if parent_old else None
+        pins = []
+        for p in m.get("pins") or []:
+            p2 = {**p}
+            if p2.get("linked_map_id") in id_map:
+                p2["linked_map_id"] = id_map[p2["linked_map_id"]]
+            pins.append(p2)
+        new_map = MapDoc(
+            id=new_id,
+            campaign_id=new_campaign_id,
+            parent_map_id=parent_new,
+            parent_pin_id=m.get("parent_pin_id"),
+            name=m.get("name") or "Map",
+            image_data=m.get("image_data"),
+            image_width=m.get("image_width") or 1600,
+            image_height=m.get("image_height") or 1000,
+            layers=m.get("layers") or [],
+            pins=pins,
+        )
+        new_maps.append(new_map.model_dump())
+    if new_maps:
+        await db.maps.insert_many(new_maps)
+
+    # Guarantee a root map exists
+    if not any(m.get("parent_map_id") is None for m in new_maps):
+        root = MapDoc(campaign_id=new_campaign_id, name="World Map")
+        await db.maps.insert_one(root.model_dump())
+
+    return new_campaign
 
 
 # ---------- Map Routes ----------

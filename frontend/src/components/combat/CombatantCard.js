@@ -28,6 +28,7 @@ export default function CombatantCard({ combatant, isCurrent, position }) {
   const [hpInput, setHpInput] = useState("");
   const [showConditions, setShowConditions] = useState(false);
   const [customCondition, setCustomCondition] = useState("");
+  const [lastRoll, setLastRoll] = useState(null); // { attackName, results: [...] }
 
   const status = statusOf(c);
   const hpPct = Math.max(
@@ -48,6 +49,8 @@ export default function CombatantCard({ combatant, isCurrent, position }) {
 
   const rollAttack = (attack) => {
     const results = executeAttack(attack);
+    // Persist the most recent roll on the card for prominent display
+    setLastRoll({ attackName: attack.name || "Attack", attack, results });
     let lines = [`${c.name} → ${attack.name || "Attack"}`];
     results.forEach((r, i) => {
       const tag = results.length > 1 ? `[${i + 1}/${results.length}] ` : "";
@@ -402,6 +405,17 @@ export default function CombatantCard({ combatant, isCurrent, position }) {
         </div>
       )}
 
+      {lastRoll && (
+        <AttackResultBlock
+          lastRoll={lastRoll}
+          combatantId={c.id}
+          onApplyDamage={(amount) =>
+            dispatch({ type: "MODIFY_HP", id: c.id, delta: -Math.abs(amount) })
+          }
+          onClear={() => setLastRoll(null)}
+        />
+      )}
+
       {expanded && (
         <div
           className="mt-2 space-y-1.5 rounded-lg bg-black/30 border border-amber-700/20 p-2"
@@ -422,6 +436,110 @@ export default function CombatantCard({ combatant, isCurrent, position }) {
           >
             <Plus className="w-3 h-3 inline" /> Add Attack
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AttackResultBlock({ lastRoll, combatantId, onApplyDamage, onClear }) {
+  const { attackName, attack, results } = lastRoll;
+  const totalHits = results.filter((r) => !r.isFumble).length;
+  const totalDamage = results.reduce(
+    (sum, r) => sum + (r.damage?.total || 0),
+    0
+  );
+  return (
+    <div
+      data-testid={`attack-result-${combatantId}`}
+      className="mt-2 rounded-lg bg-gradient-to-br from-amber-950/40 to-stone-950/50 border border-amber-500/30 p-2 space-y-1"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Swords className="w-3 h-3 text-amber-400" />
+          <span className="text-[10px] font-mono-cart uppercase tracking-widest text-amber-300 font-bold">
+            {attackName}
+          </span>
+          {results.length > 1 && (
+            <span className="text-[9px] text-stone-400 font-mono-cart">
+              ×{results.length}
+            </span>
+          )}
+        </div>
+        <button
+          data-testid={`clear-attack-result-${combatantId}`}
+          onClick={onClear}
+          className="text-stone-500 hover:text-stone-200 text-[10px] leading-none"
+          title="Clear result"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="space-y-0.5 font-mono-cart text-[10px]">
+        {results.map((r, i) => (
+          <div
+            key={i}
+            data-testid={`attack-line-${combatantId}-${i}`}
+            className="flex items-center gap-1 flex-wrap"
+          >
+            {results.length > 1 && (
+              <span className="text-stone-500 w-6">
+                {i + 1}/{results.length}
+              </span>
+            )}
+            <span
+              className={`px-1.5 py-0.5 rounded ${
+                r.isCrit
+                  ? "bg-amber-500/30 text-amber-200 font-bold"
+                  : r.isFumble
+                  ? "bg-red-700/30 text-red-300"
+                  : "bg-blue-500/20 text-blue-200"
+              }`}
+              title="Attack roll (1d20 + bonus)"
+            >
+              🎯 d20={r.hitRoll}
+              {r.hitBonus !== 0
+                ? r.hitBonus > 0
+                  ? `+${r.hitBonus}`
+                  : `${r.hitBonus}`
+                : ""}{" "}
+              = <span className="font-bold">{r.hitTotal}</span>
+              {r.isCrit && " ✨CRIT"}
+              {r.isFumble && " 💢"}
+            </span>
+            {r.damage ? (
+              <span
+                className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-200"
+                title="Damage roll"
+              >
+                ⚔ [{r.damage.rolls.join(",")}
+                {r.damage.critRolls
+                  ? ` | ${r.damage.critRolls.join(",")}`
+                  : ""}
+                ]
+                {r.damage.modifier !== 0
+                  ? r.damage.modifier > 0
+                    ? `+${r.damage.modifier}`
+                    : `${r.damage.modifier}`
+                  : ""}{" "}
+                = <span className="font-bold">{r.damage.total}</span>
+              </span>
+            ) : (
+              <span className="text-stone-500 text-[9px]">no damage</span>
+            )}
+          </div>
+        ))}
+      </div>
+      {totalDamage > 0 && (
+        <div className="flex items-center justify-between pt-1 border-t border-amber-500/20">
+          <span className="text-[10px] font-mono-cart text-stone-400">
+            {totalHits} hit{totalHits === 1 ? "" : "s"} ·{" "}
+            <span className="text-red-300 font-bold">{totalDamage}</span> total
+            dmg
+          </span>
+          <span className="text-[9px] text-stone-500 italic">
+            Apply to a target ↓
+          </span>
         </div>
       )}
     </div>

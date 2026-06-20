@@ -19,6 +19,7 @@ import {
   Copy,
   Check,
   Swords,
+  Package,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import {
@@ -82,6 +83,28 @@ export default function TopBar({
       toast.success(mode === "edit" ? "Edit link copied" : "View link copied");
     } catch {
       toast.error("Couldn't copy");
+    }
+  };
+
+  const exportCampaign = async () => {
+    try {
+      toast.info("Building campaign export…");
+      const data = await Campaigns.export(campaign.id);
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const safe = (campaign.name || "campaign").replace(/[^a-z0-9-]+/gi, "_");
+      a.download = `${safe}.cartographer.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Campaign exported");
+    } catch (e) {
+      toast.error("Export failed");
     }
   };
 
@@ -170,6 +193,16 @@ export default function TopBar({
         >
           <Download className="w-4 h-4 mr-2" />
           Export PNG
+        </Button>
+        <Button
+          data-testid="export-campaign-btn"
+          variant="ghost"
+          onClick={exportCampaign}
+          title="Download this campaign as a shareable file"
+          className="text-stone-300 hover:bg-white/5 hover:text-amber-500 h-9"
+        >
+          <Package className="w-4 h-4 mr-2" />
+          Export Campaign
         </Button>
         <Button
           data-testid="combat-btn"

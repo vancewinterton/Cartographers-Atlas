@@ -18,6 +18,7 @@ import {
   Settings,
   UserPlus,
   Skull,
+  MapPinned,
 } from "lucide-react";
 
 const sortByInit = (list) =>
@@ -28,10 +29,22 @@ const sortByInit = (list) =>
     return (b.initiativeMod || 0) - (a.initiativeMod || 0);
   });
 
-export default function CombatTrackerPanel({ onClose }) {
+export default function CombatTrackerPanel({ onClose, mapShapes = [] }) {
   const { state, dispatch } = useCombat();
   const sorted = useMemo(() => sortByInit(state.combatants), [state.combatants]);
   const activeId = state.active ? sorted[state.currentTurnIndex]?.id : null;
+
+  const mapTokens = useMemo(
+    () => (mapShapes || []).filter((s) => s.type === "token"),
+    [mapShapes]
+  );
+  const importedTokenIds = useMemo(
+    () => new Set(state.combatants.map((c) => c.sourceTokenId).filter(Boolean)),
+    [state.combatants]
+  );
+  const importableCount = mapTokens.filter(
+    (t) => !importedTokenIds.has(t.id)
+  ).length;
 
   const [tab, setTab] = useState("initiative"); // 'initiative' | 'log' | 'encounters'
   const [showSettings, setShowSettings] = useState(false);
@@ -190,29 +203,49 @@ export default function CombatTrackerPanel({ onClose }) {
 
       {/* Footer: add combatants */}
       {tab === "initiative" && (
-        <div className="p-3 border-t border-white/5 flex items-center gap-1.5">
-          <Button
-            data-testid="add-pc"
-            size="sm"
-            variant="ghost"
-            onClick={() =>
-              dispatch({ type: "ADD_COMBATANT", payload: makeCombatant("pc") })
-            }
-            className="flex-1 h-8 bg-blue-500/10 hover:bg-blue-500/20 text-blue-200 border border-blue-500/20"
-          >
-            <UserPlus className="w-3.5 h-3.5 mr-1" /> Add PC
-          </Button>
-          <Button
-            data-testid="add-enemy"
-            size="sm"
-            variant="ghost"
-            onClick={() =>
-              dispatch({ type: "ADD_COMBATANT", payload: makeCombatant("enemy") })
-            }
-            className="flex-1 h-8 bg-red-500/10 hover:bg-red-500/20 text-red-200 border border-red-500/20"
-          >
-            <Skull className="w-3.5 h-3.5 mr-1" /> Add Enemy
-          </Button>
+        <div className="p-3 border-t border-white/5 space-y-1.5">
+          {mapTokens.length > 0 && (
+            <Button
+              data-testid="import-from-map"
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                dispatch({ type: "IMPORT_FROM_MAP", tokens: mapTokens })
+              }
+              disabled={importableCount === 0}
+              className="w-full h-8 bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 border border-amber-500/30 disabled:opacity-40"
+              title="Pull all tokens on this map into the combat tracker"
+            >
+              <MapPinned className="w-3.5 h-3.5 mr-1" />
+              {importableCount > 0
+                ? `Import ${importableCount} token${importableCount === 1 ? "" : "s"} from map`
+                : `All ${mapTokens.length} map token${mapTokens.length === 1 ? "" : "s"} already imported`}
+            </Button>
+          )}
+          <div className="flex items-center gap-1.5">
+            <Button
+              data-testid="add-pc"
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                dispatch({ type: "ADD_COMBATANT", payload: makeCombatant("pc") })
+              }
+              className="flex-1 h-8 bg-blue-500/10 hover:bg-blue-500/20 text-blue-200 border border-blue-500/20"
+            >
+              <UserPlus className="w-3.5 h-3.5 mr-1" /> Add PC
+            </Button>
+            <Button
+              data-testid="add-enemy"
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                dispatch({ type: "ADD_COMBATANT", payload: makeCombatant("enemy") })
+              }
+              className="flex-1 h-8 bg-red-500/10 hover:bg-red-500/20 text-red-200 border border-red-500/20"
+            >
+              <Skull className="w-3.5 h-3.5 mr-1" /> Add Enemy
+            </Button>
+          </div>
         </div>
       )}
     </div>

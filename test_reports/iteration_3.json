@@ -1,0 +1,32 @@
+{
+  "summary": "Both backend & frontend tested for two new feature batches: (1) Campaign Save/Share Export+Import endpoints and UI buttons, (2) Map→Combat Tracker auto-import + inline attack result block. Backend: 6/6 pytest pass (export bundle, 404, round-trip, rename, invalid payload, empty-maps guarantees root). Frontend: 11/11 feature scenarios pass via Playwright on public URL using existing 'wew' campaign (8 enemy tokens).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_export_import.py",
+    "/app/backend/tests/test_backend.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: lazy useReducer initializer in CombatContext.js (lines 511-529) correctly fixes the persistence race from iteration_2 — state is seeded from localStorage on first render, so the persist effect can no longer overwrite saved data with initialState.",
+    "GOOD: server.py import endpoint (lines 213-270) correctly remaps parent_map_id AND pin linked_map_id via id_map, strips share_token on export (line 209), and guarantees a root map if the import contains zero maps (lines 266-268).",
+    "GOOD: IMPORT_FROM_MAP reducer (CombatContext.js lines 145-200) is idempotent via existingSources Set on sourceTokenId, and dedicated isPlayerColor()/mapTokenAttackToCombatAttack() helpers correctly classify PC vs enemy by color and parse '2d6+3' style strings.",
+    "GOOD: executeAttack (CombatContext.js lines 558-588) doubles only the damage DICE on nat 20 (baseRolls + critRolls) and adds a single modifier — matches 5e crit rule.",
+    "MINOR (cosmetic only, not a bug): spec wording said multi-attack tags render as '[1/3]' with brackets, but the UI renders the index as bare '1/3' (the brackets in the result block surround the individual die rolls e.g. '[2]+3'). Functionally identical — three separate d20+damage lines, per-attack totals, and a summary line 'N hits · M total dmg' all present.",
+    "MINOR: CampaignExport.exported_at uses default_factory=now_iso so it always reflects the moment of export — fine, but note that on re-export the timestamp changes (so files differ byte-for-byte even if data is identical). Not a bug, just observation.",
+    "MINOR: import endpoint silently ignores extra/unknown fields on shapes (e.g. token attacks) because MapDoc layers is List[Dict[str,Any]] — confirmed working for tokens carrying name/color/hp/maxHp/ac/initBonus/attacks. No validation but also no data loss."
+  ],
+  "updated_files": ["/app/backend/tests/test_export_import.py"],
+  "success_rate": {"backend": "100% (6/6 pytest on export/import + existing suite intact)", "frontend": "100% (11/11 feature scenarios)"},
+  "test_credentials": "n/a — no auth in app",
+  "seed_data_creation": "Backend test_export_import.py auto-creates+deletes 'TEST_Export', 'TEST_NoMaps', renamed import; cleanup runs in fixture teardown. Frontend test imported the exported 'wew' campaign once via dashboard — leaves one extra 'wew' card on the dashboard (safe to delete manually if desired).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Verified end-to-end: (a) Dashboard [data-testid=import-campaign-btn] + hidden [data-testid=import-campaign-input] with accept='application/json,.json'; (b) TopBar [data-testid=export-campaign-btn] downloads '<campaign>.cartographer.json' containing format_version, exported_at, campaign, maps[] keys; (c) Round-trip import via dashboard navigates to new /campaign/<new_id> editor URL (NOT /editor/<id> — note this for any future Playwright wait_for_url globs); (d) Combat panel [data-testid=import-from-map] button reads 'Import 8 tokens from map' on 'wew' campaign, becomes 'All 8 map tokens already imported' + disabled after click; 8 combatants imported with HP/AC/init/attacks; (e) [data-testid=attack-roll-<aid>] populates [data-testid=attack-result-<cid>] inline block showing d20+bonus=total, [die rolls]+mod=dmg, 'N hits · M total dmg' summary; (f) [data-testid=clear-attack-result-<cid>] removes the block; (g) numAttacks=3 produces 3 separate lines tagged 1/3, 2/3, 3/3 (no brackets around the index — brackets are around the damage dice rolls); (h) Adding a fresh enemy via [data-testid=add-enemy] after import keeps button disabled (no sourceTokenId on the new combatant). Persistence (lazy useReducer init) from iteration_2 confirmed still working via export/import flow. Crit (nat 20) doubling tested in code review — couldn't reliably reproduce nat 20 in finite test attempts without seed control, but executeAttack is mathematically correct.",
+  "rca_of_the_issue": "No issues to RCA — all features work as specified. Only minor cosmetic spec/render discrepancy noted (bracketed vs unbracketed attack index tag)."
+}

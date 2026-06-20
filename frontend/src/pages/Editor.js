@@ -397,7 +397,10 @@ export default function Editor() {
       )}
 
       {combatOpen && (
-        <CombatTrackerPanel onClose={() => setCombatOpen(false)} />
+        <CombatTrackerPanel
+          onClose={() => setCombatOpen(false)}
+          mapShapes={shapes}
+        />
       )}
 
       {selectedIds && selectedIds.size > 0 && (

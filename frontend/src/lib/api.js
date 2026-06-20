@@ -15,6 +15,11 @@ export const Campaigns = {
   maps: (id) => api.get(`/campaigns/${id}/maps`).then((r) => r.data),
   enableShare: (id) => api.post(`/campaigns/${id}/share`).then((r) => r.data),
   disableShare: (id) => api.delete(`/campaigns/${id}/share`).then((r) => r.data),
+  export: (id) => api.get(`/campaigns/${id}/export`).then((r) => r.data),
+  import: (data, rename) =>
+    api
+      .post("/campaigns/import", { data, rename }, { timeout: 60000 })
+      .then((r) => r.data),
 };
 
 export const Share = {

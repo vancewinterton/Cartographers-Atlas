@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Campaigns } from "../lib/api";
 import { Button } from "../components/ui/button";
@@ -13,7 +13,7 @@ import {
 } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
-import { Compass, Plus, Trash2, MapPinned, Sparkles, BookOpen } from "lucide-react";
+import { Compass, Plus, Trash2, MapPinned, Sparkles, BookOpen, Upload } from "lucide-react";
 import TutorialDialog from "../components/editor/TutorialDialog";
 import { toast } from "sonner";
 
@@ -25,6 +25,8 @@ export default function Dashboard() {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [coverFile, setCoverFile] = useState(null);
+  const importInputRef = useRef(null);
+  const [importing, setImporting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -75,6 +77,28 @@ export default function Dashboard() {
     load();
   };
 
+  const handleImportFile = async (file) => {
+    if (!file) return;
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed?.campaign || !Array.isArray(parsed?.maps)) {
+        throw new Error("Not a valid campaign export");
+      }
+      const created = await Campaigns.import(parsed, null);
+      toast.success(`Imported "${created.name}"`);
+      await load();
+      navigate(`/campaign/${created.id}`);
+    } catch (e) {
+      toast.error(
+        e?.response?.data?.detail || e?.message || "Import failed — invalid file?"
+      );
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen grain relative" data-testid="dashboard-page">
       {/* Hero */}
@@ -99,6 +123,29 @@ export default function Dashboard() {
 
           <Dialog open={open} onOpenChange={setOpen}>
             <div className="flex items-center gap-3">
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleImportFile(f);
+                  e.target.value = "";
+                }}
+                data-testid="import-campaign-input"
+              />
+              <Button
+                data-testid="import-campaign-btn"
+                onClick={() => importInputRef.current?.click()}
+                disabled={importing}
+                variant="ghost"
+                className="text-stone-300 hover:bg-white/5 hover:text-amber-500 px-5 py-6 rounded-full border border-white/10"
+                title="Import a campaign exported from another atlas"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {importing ? "Importing…" : "Import"}
+              </Button>
               <TutorialDialog />
               <DialogTrigger asChild>
                 <Button

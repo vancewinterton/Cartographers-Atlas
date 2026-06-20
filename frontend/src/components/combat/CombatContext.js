@@ -54,6 +54,30 @@ const blankAttack = () => ({
   numAttacks: 1,
 });
 
+// blue-ish tokens are players, everything else (red/orange/etc) is treated as enemy
+const PC_HEX = new Set(["#3B82F6", "#2563EB", "#1D4ED8", "#0EA5E9", "#22D3EE"]);
+const isPlayerColor = (hex) => !!hex && PC_HEX.has(String(hex).toUpperCase());
+
+// Map token's freeform attack {name, hit, damage:"2d6+3"} → combat attack model
+const mapTokenAttackToCombatAttack = (a) => {
+  const dmgMatch = String(a?.damage || "1d8")
+    .trim()
+    .match(/^(\d*d\d+)\s*([+-]\s*\d+)?$/i);
+  const damageDice = dmgMatch ? dmgMatch[1] : "1d8";
+  const damageModifier = dmgMatch && dmgMatch[2]
+    ? parseInt(dmgMatch[2].replace(/\s/g, ""), 10)
+    : 0;
+  const attackBonus = parseInt(a?.hit, 10) || 0;
+  return {
+    id: uid(),
+    name: a?.name || "Attack",
+    attackBonus,
+    damageDice,
+    damageModifier,
+    numAttacks: parseInt(a?.numAttacks, 10) || 1,
+  };
+};
+
 export const makeCombatant = (kind, overrides = {}) => ({
   id: uid(),
   kind,
@@ -114,6 +138,63 @@ function reducer(state, action) {
           x.id === c.id ? { ...x, initiativeRoll: r } : x
         );
         log = pushLog(log, "init", `${c.name} rolled initiative: ${r}`);
+      }
+      return { ...state, combatants, log };
+    }
+
+    case "IMPORT_FROM_MAP": {
+      // payload: { tokens: [...] }  — tokens come from MapCanvas shape entries
+      const existingSources = new Set(
+        state.combatants.map((c) => c.sourceTokenId).filter(Boolean)
+      );
+      let log = state.log;
+      const fresh = [];
+      for (const tok of action.tokens || []) {
+        if (!tok?.id || existingSources.has(tok.id)) continue;
+        // Classify PC vs enemy: blue-ish color = PC, otherwise enemy
+        const kind = isPlayerColor(tok.color) ? "pc" : "enemy";
+        const attacks = Array.isArray(tok.attacks)
+          ? tok.attacks.map((a) => mapTokenAttackToCombatAttack(a))
+          : [];
+        const combatant = {
+          id: uid(),
+          kind,
+          name: tok.label || (kind === "pc" ? "Hero" : "Enemy"),
+          color: tok.color || (kind === "pc" ? "#3B82F6" : "#EF4444"),
+          initiativeMod: parseInt(tok.initBonus, 10) || 0,
+          initiativeRoll: null,
+          maxHp: parseInt(tok.hpMax, 10) || parseInt(tok.hp, 10) || 15,
+          currentHp:
+            parseInt(tok.hp, 10) ||
+            parseInt(tok.hpMax, 10) ||
+            15,
+          ac: parseInt(tok.ac, 10) || 13,
+          attacks,
+          conditions: [],
+          concentration: false,
+          sourceTokenId: tok.id,
+        };
+        fresh.push(combatant);
+        log = pushLog(
+          log,
+          "info",
+          `${combatant.name} synced from map → tracker.`
+        );
+      }
+      if (!fresh.length) {
+        return {
+          ...state,
+          log: pushLog(state.log, "info", "No new tokens to import from map."),
+        };
+      }
+      let combatants = [...state.combatants, ...fresh];
+      if (state.settings.autoRollInit) {
+        combatants = combatants.map((c) => {
+          if (!fresh.find((f) => f.id === c.id)) return c;
+          const r = rollDie(20) + (c.initiativeMod || 0);
+          log = pushLog(log, "init", `${c.name} rolled initiative: ${r}`);
+          return { ...c, initiativeRoll: r };
+        });
       }
       return { ...state, combatants, log };
     }
