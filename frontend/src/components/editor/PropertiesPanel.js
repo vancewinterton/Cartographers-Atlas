@@ -36,6 +36,8 @@ export default function PropertiesPanel({
   setShowHealthBars,
   showGhostTrails,
   setShowGhostTrails,
+  campaign,
+  setCampaign,
   onClose,
 }) {
   const addLayer = () => {
@@ -216,6 +218,24 @@ export default function PropertiesPanel({
               onCheckedChange={setShowHealthBars}
             />
           </label>
+          {campaign && setCampaign && (
+            <label
+              className="flex items-center justify-between rounded-lg px-2.5 py-2 bg-black/20"
+              title="When on, the share-link viewer also sees HP bars on tokens. Turn off for a DM-only HP view."
+            >
+              <div className="flex flex-col">
+                <span className="text-sm text-stone-200">Show HP to players</span>
+                <span className="text-[10px] text-stone-500">
+                  Affects the public share link
+                </span>
+              </div>
+              <Switch
+                data-testid="toggle-health-bars-public"
+                checked={campaign.hp_bars_public !== false}
+                onCheckedChange={(v) => setCampaign({ hp_bars_public: v })}
+              />
+            </label>
+          )}
           <label className="flex items-center justify-between rounded-lg px-2.5 py-2 bg-black/20">
             <span className="text-sm text-stone-200">Show ghost trails</span>
             <Switch

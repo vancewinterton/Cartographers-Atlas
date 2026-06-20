@@ -7,10 +7,8 @@ import {
   Type,
   MapPin,
   Sparkles,
-  Eraser,
   Undo2,
   Redo2,
-  Trash2,
   Grid3x3,
   ImagePlus,
   Swords,
@@ -20,7 +18,7 @@ import {
 const TOOLS = [
   { id: "pan", icon: Hand, label: "Pan" },
   { id: "select", icon: BoxSelect, label: "Multi-select" },
-  { id: "brush", icon: Paintbrush, label: "Brush" },
+  { id: "paint", icon: Paintbrush, label: "Paint Tools" },
   { id: "rect", icon: Square, label: "Rectangle" },
   { id: "circle", icon: CircleIcon, label: "Circle" },
   { id: "polygon", icon: Spline, label: "Polygon" },
@@ -30,9 +28,11 @@ const TOOLS = [
   { id: "asset", icon: ImagePlus, label: "Import Asset" },
   { id: "grid", icon: Grid3x3, label: "Grid" },
   { id: "ai-redraw", icon: Sparkles, label: "AI Redraw" },
-  { id: "soft-erase", icon: Eraser, label: "Soft Eraser" },
-  { id: "erase", icon: Trash2, label: "Delete Shape" },
 ];
+
+// Tools that live inside the Paint Panel — clicking the "Paint" dock button
+// activates this set and pops open the panel.
+const PAINT_TOOLS = new Set(["brush", "soft-erase", "erase"]);
 
 export default function ToolDock({
   tool,
@@ -41,6 +41,7 @@ export default function ToolDock({
   onRedo,
   canUndo,
   canRedo,
+  onOpenPaintPanel,
 }) {
   return (
     <div
@@ -49,13 +50,21 @@ export default function ToolDock({
     >
       {TOOLS.map((t) => {
         const Icon = t.icon;
-        const active = tool === t.id;
+        const isPaint = t.id === "paint";
+        const active = isPaint ? PAINT_TOOLS.has(tool) : tool === t.id;
         const ai = t.id === "ai-redraw";
         return (
           <button
             key={t.id}
             data-testid={`tool-${t.id}`}
-            onClick={() => setTool(t.id)}
+            onClick={() => {
+              if (isPaint) {
+                onOpenPaintPanel?.();
+                if (!PAINT_TOOLS.has(tool)) setTool("brush");
+              } else {
+                setTool(t.id);
+              }
+            }}
             title={t.label}
             className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0 ${
               active

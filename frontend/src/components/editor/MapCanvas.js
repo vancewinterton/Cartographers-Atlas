@@ -48,6 +48,8 @@ export default function MapCanvas({
   tool,
   color,
   brushSize,
+  brushOpacity = 1,
+  brushVariant = "brush",
   shapes,
   setShapes,
   pins,
@@ -227,6 +229,8 @@ export default function MapCanvas({
         layerId: activeLayerId,
         color,
         size: brushSize,
+        opacity: brushOpacity,
+        variant: brushVariant,
         points: [p.x, p.y],
       });
       return;
@@ -984,15 +988,32 @@ function ShapeEl({ s, preview }) {
   const fill = "none";
   const dash = preview ? "8 6" : undefined;
   if (s.type === "brush") {
+    // Variant-specific rendering: marker/highlighter use lower opacity + square caps,
+    // pencil uses thin solid, spray uses dashed dotted overlay
+    const variant = s.variant || "brush";
+    const baseOpacity = s.opacity != null ? s.opacity : 1;
+    const variantStyle =
+      variant === "highlighter"
+        ? { opacity: baseOpacity * 0.45, linecap: "butt", strokeDasharray: dash }
+        : variant === "marker"
+        ? { opacity: baseOpacity * 0.85, linecap: "round", strokeDasharray: dash }
+        : variant === "pencil"
+        ? { opacity: baseOpacity * 0.95, linecap: "round", strokeDasharray: dash }
+        : variant === "spray"
+        ? { opacity: baseOpacity * 0.55, linecap: "round", strokeDasharray: dash ? dash : "1 4" }
+        : variant === "calligraphy"
+        ? { opacity: baseOpacity, linecap: "round", strokeDasharray: dash }
+        : { opacity: baseOpacity, linecap: "round", strokeDasharray: dash };
     return (
       <polyline
         points={pairs(s.points).join(" ")}
         fill="none"
         stroke={stroke}
         strokeWidth={sw}
-        strokeLinecap="round"
+        strokeLinecap={variantStyle.linecap}
         strokeLinejoin="round"
-        strokeDasharray={dash}
+        strokeOpacity={variantStyle.opacity}
+        strokeDasharray={variantStyle.strokeDasharray}
       />
     );
   }

@@ -29,7 +29,12 @@ const sortByInit = (list) =>
     return (b.initiativeMod || 0) - (a.initiativeMod || 0);
   });
 
-export default function CombatTrackerPanel({ onClose, mapShapes = [] }) {
+export default function CombatTrackerPanel({
+  onClose,
+  mapShapes = [],
+  onSpawnToken,
+  onFocusToken,
+}) {
   const { state, dispatch } = useCombat();
   const sorted = useMemo(() => sortByInit(state.combatants), [state.combatants]);
   const activeId = state.active ? sorted[state.currentTurnIndex]?.id : null;
@@ -190,7 +195,11 @@ export default function CombatTrackerPanel({ onClose, mapShapes = [] }) {
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-3">
         {tab === "initiative" && (
-          <InitiativeTab sorted={sorted} activeId={activeId} />
+          <InitiativeTab
+            sorted={sorted}
+            activeId={activeId}
+            onFocusToken={onFocusToken}
+          />
         )}
         {tab === "log" && <CombatLog />}
         {tab === "encounters" && (
@@ -227,20 +236,47 @@ export default function CombatTrackerPanel({ onClose, mapShapes = [] }) {
               data-testid="add-pc"
               size="sm"
               variant="ghost"
-              onClick={() =>
-                dispatch({ type: "ADD_COMBATANT", payload: makeCombatant("pc") })
-              }
+              onClick={() => {
+                const c = makeCombatant("pc");
+                // Spawn a matching blue dot on the map so PC ↔ token stay linked
+                if (onSpawnToken) {
+                  const tokenId = onSpawnToken({
+                    kind: "pc",
+                    color: c.color,
+                    label: c.name,
+                    hp: c.currentHp,
+                    hpMax: c.maxHp,
+                    ac: c.ac,
+                    initBonus: c.initiativeMod,
+                  });
+                  if (tokenId) c.sourceTokenId = tokenId;
+                }
+                dispatch({ type: "ADD_COMBATANT", payload: c });
+              }}
               className="flex-1 h-8 bg-blue-500/10 hover:bg-blue-500/20 text-blue-200 border border-blue-500/20"
             >
-              <UserPlus className="w-3.5 h-3.5 mr-1" /> Add PC
+              <UserPlus className="w-3.5 h-3.5 mr-1" /> Add Hero
             </Button>
             <Button
               data-testid="add-enemy"
               size="sm"
               variant="ghost"
-              onClick={() =>
-                dispatch({ type: "ADD_COMBATANT", payload: makeCombatant("enemy") })
-              }
+              onClick={() => {
+                const c = makeCombatant("enemy");
+                if (onSpawnToken) {
+                  const tokenId = onSpawnToken({
+                    kind: "enemy",
+                    color: c.color,
+                    label: c.name,
+                    hp: c.currentHp,
+                    hpMax: c.maxHp,
+                    ac: c.ac,
+                    initBonus: c.initiativeMod,
+                  });
+                  if (tokenId) c.sourceTokenId = tokenId;
+                }
+                dispatch({ type: "ADD_COMBATANT", payload: c });
+              }}
               className="flex-1 h-8 bg-red-500/10 hover:bg-red-500/20 text-red-200 border border-red-500/20"
             >
               <Skull className="w-3.5 h-3.5 mr-1" /> Add Enemy
@@ -252,14 +288,14 @@ export default function CombatTrackerPanel({ onClose, mapShapes = [] }) {
   );
 }
 
-function InitiativeTab({ sorted, activeId }) {
+function InitiativeTab({ sorted, activeId, onFocusToken }) {
   if (sorted.length === 0) {
     return (
       <div className="text-center py-8 text-stone-500 text-sm">
         <Swords className="w-8 h-8 mx-auto mb-2 opacity-30" />
         <div>No combatants yet.</div>
         <div className="text-[11px] mt-1 text-stone-600">
-          Add a PC or Enemy below to begin.
+          Add a Hero or Enemy below to begin.
         </div>
       </div>
     );
@@ -272,6 +308,8 @@ function InitiativeTab({ sorted, activeId }) {
           combatant={c}
           isCurrent={c.id === activeId}
           position={idx}
+          allCombatants={sorted}
+          onFocusToken={onFocusToken}
         />
       ))}
     </div>

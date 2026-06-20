@@ -1,0 +1,39 @@
+{
+  "summary": "Tested 3 feature batches (Paint Tools rework, Combat Tracker hero/spawn/damage targeting, hp_bars_public campaign flag). Backend: 25/25 pytest pass (5 new hp_bars_public tests added + 20 existing intact). Frontend: all critical scenarios pass via Playwright on public URL — Paint Panel with 8 variants/11 swatches/sliders, Add Hero+Enemy spawn linked tokens, focus-token opens ShapeEditPopover, damage targeting dropdown applies HP loss correctly (Hero 30→23 on '1 hit · 7 dmg' attack), PATCH /api/campaigns fires with {hp_bars_public:false}, share endpoint returns the flag.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "CombatantCard target-select", "issues": ["React hydration warning in console: '<option> cannot be a child of <span>' — invalid HTML nesting inside the target-select rendering. Functional but emits a hydration error log. Likely a wrapper <span> around <option> elements in AttackResultBlock."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_hp_bars_public.py",
+    "/app/backend/tests/test_backend.py",
+    "/app/backend/tests/test_export_import.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional: fix the React hydration warning by ensuring <option> elements aren't wrapped in a <span> inside the target-select (cosmetic console noise only)."
+  ],
+  "critical_code_review_comments": [
+    "GOOD: server.py Campaign.hp_bars_public default True (line 39) preserves legacy share behavior; CampaignUpdate.hp_bars_public Optional[bool] (line 54) lets PATCH selectively flip it without touching other fields. Existing /api/share/{token} (line 192) returns the full Campaign model so the flag automatically flows to Share.js.",
+    "GOOD: PaintPanel.js applyVariant() (lines 167-174) correctly sets tool + variant + opacity + size atomically; activeVariantId tuple-match (tool+variant) handles brush vs soft-erase vs hard-erase distinction cleanly.",
+    "GOOD: ToolDock.js PAINT_TOOLS Set (line 35) makes the dock 'paint' button stay highlighted while any of brush/soft-erase/erase is active; clicking it re-opens the panel and only auto-sets tool='brush' if not already in a paint tool (line 63). Old separate brush/soft-erase/erase buttons fully removed.",
+    "GOOD: PaintPanel live preview SVG (lines 300-315) re-renders strokeWidth/strokeOpacity/strokeLinecap/strokeDasharray based on current state — verified visually that highlighter → butt linecap & lower opacity, spray → dasharray '1 4'.",
+    "GOOD: CombatTrackerPanel onSpawnToken wiring confirmed via on-screen toast 'Token added to map for New Enemy' and 'Import 11 tokens from map' counter rising by 2 after add-pc+add-enemy. sourceTokenId linkage proven by focus-token-<id> opening ShapeEditPopover for the right map shape.",
+    "GOOD: Damage application — fresh Hero (30 HP) took exactly 7 damage when enemy rolled '1 hit · 7 total dmg' via apply-total → 23/30. Per-line apply button appears only after target selected. Target-select options correctly exclude attacker and show '🧝 New Hero — 30/30' (alive-only).",
+    "GOOD: PATCH /api/campaigns/{id} with {hp_bars_public:false} fires on toggle (verified via request interception). Backend hp_bars_public defaults True for new campaigns + persists round-trip + propagates through /api/share/{token}.campaign.hp_bars_public (5/5 pytest in test_hp_bars_public.py).",
+    "MINOR: Hydration warning '<option> cannot be a child of <span>' from target-select in AttackResultBlock — render-time only, not a functional bug.",
+    "OBSERVATION: Combat tracker state is per-session (CombatContext lazy-init from localStorage). Combatants survive page reloads, but map tokens spawned via Add Hero/Add Enemy persist independently in campaign maps — so re-opening a campaign after combatants were cleared can leave 'orphan' linked tokens on the map (no inverse cleanup when a combatant is removed). Spec didn't require linking removal, just noting for completeness."
+  ],
+  "updated_files": ["/app/backend/tests/test_hp_bars_public.py"],
+  "success_rate": {"backend": "100% (25/25 pytest, incl. 5 new hp_bars_public)", "frontend": "100% on critical paths verified (paint panel + 8 variants + 11 swatches + sliders, Add Hero text, token spawn w/ sourceTokenId, focus-token popover, damage targeting w/ HP delta 30→23, per-line apply present, PATCH hp_bars_public fires & propagates via /api/share)"},
+  "test_credentials": "n/a — no auth",
+  "seed_data_creation": "test_hp_bars_public.py auto-creates+deletes a TEST_HP_<rand> campaign via fixture teardown. Frontend testing added a few 'New Hero'/'New Enemy' combatants + matching tokens to the 'wew' campaign (campaign id 189e3915-f26e-48f1-b75a-860e8f973d79) — visible on the map as blue P / red N tokens. Safe to clear via the UI if desired.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Verified: (a) ToolDock: tool-brush/tool-soft-erase/tool-erase removed; single tool-paint button opens [data-testid=paint-panel]. (b) PaintPanel: 8 paint-variant-* buttons, 11 paint-swatch-#XXXXXX swatches, paint-color-picker, paint-size-slider (1-60), paint-opacity-slider (10-100), paint-panel-close. applyVariant correctly sets tool/variant/opacity/size — highlighter→size 28/opacity 45, pencil→size 4/opacity 95. (c) CombatTrackerPanel: [data-testid=add-pc] visible text is 'Add Hero' (testid kept for compat). Both spawn linked tokens (toast 'Token added to map for ...'). focus-token-<id> opens ShapeEditPopover. (d) Damage flow: toggle-attacks-<id> → attack-roll-<aid> → attack-result-<cid> appears with target-select-<cid> + apply-total-<cid>, apply-line-<cid>-<idx> only visible after target chosen. Hero HP delta verified (30→23 for 7 dmg). (e) PropertiesPanel has BOTH toggle-health-bars (local) AND toggle-health-bars-public (campaign-persisted via PATCH /api/campaigns/{id} {hp_bars_public:false}). (f) /api/share/{token} returns .campaign.hp_bars_public — confirmed via backend test_share_endpoint_returns_hp_bars_public_flag. Known minor: React hydration warning '<option> cannot be a child of <span>' from target-select wrapper.",
+  "rca_of_the_issue": "n/a — no regression. Single minor cosmetic console warning about <option> inside <span> in the target-select; harmless but visible in devtools."
+}

@@ -21,7 +21,7 @@ const STATUS_BADGE = {
   Dead: "bg-stone-700/40 text-stone-400 border-stone-600/40 line-through",
 };
 
-export default function CombatantCard({ combatant, isCurrent, position }) {
+export default function CombatantCard({ combatant, isCurrent, position, allCombatants = [], onFocusToken }) {
   const c = combatant;
   const { dispatch, state, presetConditions } = useCombat();
   const [expanded, setExpanded] = useState(false);
@@ -107,17 +107,31 @@ export default function CombatantCard({ combatant, isCurrent, position }) {
             ▶
           </span>
         )}
-        <span
-          className="w-5 h-5 rounded-full ring-1 ring-black/40 shrink-0 relative"
+        <button
+          type="button"
+          data-testid={`focus-token-${c.id}`}
+          onClick={() => {
+            if (c.sourceTokenId && onFocusToken) onFocusToken(c.sourceTokenId);
+          }}
+          disabled={!c.sourceTokenId || !onFocusToken}
+          title={
+            c.sourceTokenId
+              ? "Find this token on the map"
+              : c.kind === "pc"
+              ? "Player Character"
+              : "Enemy"
+          }
+          className={`w-5 h-5 rounded-full ring-1 ring-black/40 shrink-0 relative ${
+            c.sourceTokenId && onFocusToken ? "cursor-pointer hover:ring-2 hover:ring-amber-400" : "cursor-default"
+          }`}
           style={{ backgroundColor: c.color }}
-          title={c.kind === "pc" ? "Player Character" : "Enemy"}
         >
           {c.kind === "pc" && (
-            <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white">
+            <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white pointer-events-none">
               P
             </span>
           )}
-        </span>
+        </button>
         <Input
           data-testid={`name-${c.id}`}
           value={c.name}
@@ -409,9 +423,9 @@ export default function CombatantCard({ combatant, isCurrent, position }) {
         <AttackResultBlock
           lastRoll={lastRoll}
           combatantId={c.id}
-          onApplyDamage={(amount) =>
-            dispatch({ type: "MODIFY_HP", id: c.id, delta: -Math.abs(amount) })
-          }
+          attackerName={c.name}
+          allCombatants={allCombatants}
+          dispatch={dispatch}
           onClear={() => setLastRoll(null)}
         />
       )}
@@ -442,13 +456,42 @@ export default function CombatantCard({ combatant, isCurrent, position }) {
   );
 }
 
-function AttackResultBlock({ lastRoll, combatantId, onApplyDamage, onClear }) {
-  const { attackName, attack, results } = lastRoll;
+function AttackResultBlock({
+  lastRoll,
+  combatantId,
+  attackerName,
+  allCombatants = [],
+  dispatch,
+  onClear,
+}) {
+  const { attackName, results } = lastRoll;
   const totalHits = results.filter((r) => !r.isFumble).length;
   const totalDamage = results.reduce(
     (sum, r) => sum + (r.damage?.total || 0),
     0
   );
+  // Apply-damage picker state (per-row + total)
+  const [targetId, setTargetId] = useState("");
+  const [applied, setApplied] = useState(null); // { targetId, amount }
+  const validTargets = allCombatants.filter(
+    (t) => t.id !== combatantId && t.currentHp > 0
+  );
+  const applyDamage = (amount) => {
+    if (!targetId || amount <= 0) return;
+    dispatch({
+      type: "MODIFY_HP",
+      id: targetId,
+      delta: -Math.abs(amount),
+    });
+    const tgt = allCombatants.find((c) => c.id === targetId);
+    dispatch({
+      type: "LOG_ATTACK",
+      text: `💥 ${attackerName} hits ${tgt?.name || "target"} for ${amount} damage.`,
+      entryType: "damage",
+    });
+    setApplied({ targetId, amount });
+    setTimeout(() => setApplied(null), 1500);
+  };
   return (
     <div
       data-testid={`attack-result-${combatantId}`}
@@ -495,7 +538,6 @@ function AttackResultBlock({ lastRoll, combatantId, onApplyDamage, onClear }) {
                   ? "bg-red-700/30 text-red-300"
                   : "bg-blue-500/20 text-blue-200"
               }`}
-              title="Attack roll (1d20 + bonus)"
             >
               🎯 d20={r.hitRoll}
               {r.hitBonus !== 0
@@ -508,10 +550,7 @@ function AttackResultBlock({ lastRoll, combatantId, onApplyDamage, onClear }) {
               {r.isFumble && " 💢"}
             </span>
             {r.damage ? (
-              <span
-                className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-200"
-                title="Damage roll"
-              >
+              <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-200">
                 ⚔ [{r.damage.rolls.join(",")}
                 {r.damage.critRolls
                   ? ` | ${r.damage.critRolls.join(",")}`
@@ -527,19 +566,66 @@ function AttackResultBlock({ lastRoll, combatantId, onApplyDamage, onClear }) {
             ) : (
               <span className="text-stone-500 text-[9px]">no damage</span>
             )}
+            {/* Per-attack apply button */}
+            {r.damage && targetId && (
+              <button
+                data-testid={`apply-line-${combatantId}-${i}`}
+                onClick={() => applyDamage(r.damage.total)}
+                className="ml-auto px-1.5 py-0.5 rounded text-[9px] font-mono-cart uppercase tracking-wider bg-red-700/50 hover:bg-red-600 text-red-50"
+                title="Apply this hit's damage to the selected target"
+              >
+                Apply
+              </button>
+            )}
           </div>
         ))}
       </div>
       {totalDamage > 0 && (
-        <div className="flex items-center justify-between pt-1 border-t border-amber-500/20">
-          <span className="text-[10px] font-mono-cart text-stone-400">
-            {totalHits} hit{totalHits === 1 ? "" : "s"} ·{" "}
-            <span className="text-red-300 font-bold">{totalDamage}</span> total
-            dmg
-          </span>
-          <span className="text-[9px] text-stone-500 italic">
-            Apply to a target ↓
-          </span>
+        <div className="pt-1 border-t border-amber-500/20 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono-cart text-stone-400">
+              {totalHits} hit{totalHits === 1 ? "" : "s"} ·{" "}
+              <span className="text-red-300 font-bold">{totalDamage}</span> total
+              dmg
+            </span>
+          </div>
+          {validTargets.length === 0 ? (
+            <div className="text-[9px] text-stone-500 italic">
+              No valid targets — add a combatant to apply damage.
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              <select
+                data-testid={`target-select-${combatantId}`}
+                value={targetId}
+                onChange={(e) => setTargetId(e.target.value)}
+                className="flex-1 h-7 bg-black/50 border border-white/10 rounded-md px-1.5 text-[10px] font-mono-cart text-stone-100 focus:outline-none focus:border-amber-500/60"
+              >
+                <option value="">Apply damage to…</option>
+                {validTargets.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.kind === "pc" ? "🧝 " : "👹 "} {t.name} — {t.currentHp}/
+                    {t.maxHp}
+                  </option>
+                ))}
+              </select>
+              <button
+                data-testid={`apply-total-${combatantId}`}
+                onClick={() => applyDamage(totalDamage)}
+                disabled={!targetId}
+                className="px-2 h-7 rounded-md bg-red-600 hover:bg-red-500 text-stone-50 text-[10px] font-bold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Subtract total damage from the selected target's HP"
+              >
+                Apply {totalDamage}
+              </button>
+            </div>
+          )}
+          {applied && (
+            <div className="text-[10px] font-mono-cart text-emerald-300 text-center animate-pulse">
+              ✓ Applied {applied.amount} damage to{" "}
+              {allCombatants.find((c) => c.id === applied.targetId)?.name}
+            </div>
+          )}
         </div>
       )}
     </div>

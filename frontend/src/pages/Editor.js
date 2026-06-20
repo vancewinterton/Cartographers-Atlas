@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Campaigns, Maps } from "../lib/api";
 import TopBar from "../components/editor/TopBar";
 import ToolDock from "../components/editor/ToolDock";
+import PaintPanel from "../components/editor/PaintPanel";
 import PropertiesPanel from "../components/editor/PropertiesPanel";
 import MapCanvas from "../components/editor/MapCanvas";
 import AIRedrawDialog from "../components/editor/AIRedrawDialog";
@@ -38,6 +39,9 @@ export default function Editor() {
   const [tool, setTool] = useState("pan"); // pan, brush, rect, circle, polygon, text, pin, ai-redraw, select-region, erase
   const [color, setColor] = useState("#D97706");
   const [brushSize, setBrushSize] = useState(4);
+  const [brushOpacity, setBrushOpacity] = useState(1);
+  const [brushVariant, setBrushVariant] = useState("brush");
+  const [paintPanelOpen, setPaintPanelOpen] = useState(false);
   const [layers, setLayers] = useState([
     { id: "L1", name: "Layer 1", visible: true, locked: false },
   ]);
@@ -320,6 +324,8 @@ export default function Editor() {
         tool={tool}
         color={color}
         brushSize={brushSize}
+        brushOpacity={brushOpacity}
+        brushVariant={brushVariant}
         shapes={shapes}
         setShapes={setShapes}
         pins={pins}
@@ -358,7 +364,24 @@ export default function Editor() {
         onRedo={redo}
         canUndo={undoStack.current.length > 0}
         canRedo={redoStack.current.length > 0}
+        onOpenPaintPanel={() => setPaintPanelOpen(true)}
       />
+
+      {paintPanelOpen && (
+        <PaintPanel
+          tool={tool}
+          setTool={setTool}
+          color={color}
+          setColor={setColor}
+          brushSize={brushSize}
+          setBrushSize={setBrushSize}
+          brushOpacity={brushOpacity}
+          setBrushOpacity={setBrushOpacity}
+          brushVariant={brushVariant}
+          setBrushVariant={setBrushVariant}
+          onClose={() => setPaintPanelOpen(false)}
+        />
+      )}
 
       {propertiesOpen ? (
         <PropertiesPanel
@@ -382,6 +405,18 @@ export default function Editor() {
           setShowHealthBars={setShowHealthBars}
           showGhostTrails={showGhostTrails}
           setShowGhostTrails={setShowGhostTrails}
+          campaign={campaign}
+          setCampaign={async (patch) => {
+            // optimistic update + persist to backend
+            const next = { ...campaign, ...patch };
+            setCampaign(next);
+            try {
+              await Campaigns.update(campaign.id, patch);
+            } catch {
+              toast.error("Failed to save campaign setting");
+              setCampaign(campaign);
+            }
+          }}
           onClose={() => setPropertiesOpen(false)}
         />
       ) : (
@@ -400,6 +435,39 @@ export default function Editor() {
         <CombatTrackerPanel
           onClose={() => setCombatOpen(false)}
           mapShapes={shapes}
+          onSpawnToken={(t) => {
+            // Place a new token at the center of the map; return its id so the
+            // combatant can link to it via sourceTokenId.
+            pushHistory();
+            const id = cryptoRandom();
+            const newToken = {
+              id,
+              type: "token",
+              layerId: activeLayerId,
+              color: t.color,
+              size: 28,
+              x: Math.round((mapDoc.image_width || 1600) / 2),
+              y: Math.round((mapDoc.image_height || 1000) / 2),
+              label: t.label || "",
+              hp: t.hp ?? null,
+              hpMax: t.hpMax ?? null,
+              ac: t.ac ?? null,
+              initBonus: t.initBonus ?? 0,
+              attacks: [],
+            };
+            setShapes((arr) => [...arr, newToken]);
+            toast.success(`Token added to map for ${t.label || "combatant"}`);
+            return id;
+          }}
+          onFocusToken={(tokenId) => {
+            const tok = shapes.find((s) => s.id === tokenId);
+            if (!tok) {
+              toast.error("Linked token not found on this map");
+              return;
+            }
+            setEditingShape(tok);
+            setSelectedIds(new Set([tokenId]));
+          }}
         />
       )}
 

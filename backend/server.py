@@ -36,6 +36,7 @@ class Campaign(BaseModel):
     description: str = ""
     cover_image: Optional[str] = None  # base64 data URL or remote URL
     share_token: Optional[str] = None  # set when sharing is enabled
+    hp_bars_public: bool = True  # when False, HP bars hidden from share viewers
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
@@ -50,6 +51,7 @@ class CampaignUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     cover_image: Optional[str] = None
+    hp_bars_public: Optional[bool] = None
 
 
 class MapDoc(BaseModel):

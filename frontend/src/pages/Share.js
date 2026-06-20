@@ -73,6 +73,7 @@ export default function SharePage() {
         onPinClick={(p) => setPinSheetPin(p)}
         onAIRegionSelected={() => {}}
         pinColorFilter={new Set()}
+        showHealthBars={data.campaign.hp_bars_public !== false}
         readOnly
       />
 
