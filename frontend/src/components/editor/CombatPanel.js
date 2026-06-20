@@ -11,6 +11,7 @@ import {
   Shuffle,
   Trash2,
   Minus,
+  Crosshair,
 } from "lucide-react";
 
 const DICE = [4, 6, 8, 10, 12, 20, 100];
@@ -69,6 +70,20 @@ export default function CombatPanel({ shapes, setShapes, onPushHistory, onClose 
     };
     setRollLog((prev) => [entry, ...prev].slice(0, 12));
   };
+
+  const applyDamage = (tokenId, amount) => {
+    onPushHistory();
+    setShapes((arr) =>
+      arr.map((s) => {
+        if (s.id !== tokenId) return s;
+        const cur = s.hp ?? s.hpMax ?? 0;
+        const next = Math.max(0, Math.min(s.hpMax ?? cur, cur - amount));
+        return { ...s, hp: next };
+      }),
+    );
+  };
+
+  const [damageAmt, setDamageAmt] = useState({});
 
   return (
     <div
@@ -130,40 +145,87 @@ export default function CombatPanel({ shapes, setShapes, onPushHistory, onClose 
             <div
               key={t.id}
               data-testid={`combat-row-${t.id}`}
-              className={`rounded-lg px-2 py-1.5 flex items-center gap-2 transition ${
+              className={`rounded-lg p-2 transition ${
                 isCurrent
                   ? "bg-amber-600/15 ring-1 ring-amber-700/40"
                   : "bg-black/30 hover:bg-black/40"
               }`}
             >
-              <span
-                className="w-5 h-5 rounded-full ring-1 ring-black shrink-0"
-                style={{ backgroundColor: t.color || "#EF4444" }}
-              />
-              <Input
-                data-testid={`combat-name-${t.id}`}
-                value={t.label || ""}
-                onChange={(e) => updateToken(t.id, { label: e.target.value })}
-                placeholder="Unnamed"
-                className="bg-transparent border-0 h-7 px-1 text-sm focus-visible:ring-0 flex-1 min-w-0"
-              />
-              {t.hp != null && t.hpMax != null && (
-                <span className="text-[10px] font-mono-cart text-stone-400 shrink-0 flex items-center gap-0.5">
-                  <Heart className="w-2.5 h-2.5" /> {t.hp}/{t.hpMax}
-                </span>
-              )}
-              <Input
-                data-testid={`combat-init-${t.id}`}
-                type="number"
-                value={t.init ?? ""}
-                onChange={(e) =>
-                  updateToken(t.id, {
-                    init: e.target.value === "" ? null : parseInt(e.target.value, 10),
-                  })
-                }
-                placeholder="—"
-                className="bg-black/40 border-white/10 h-7 w-12 text-xs px-1.5 text-center"
-              />
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-5 h-5 rounded-full ring-1 ring-black shrink-0"
+                  style={{ backgroundColor: t.color || "#EF4444" }}
+                />
+                <Input
+                  data-testid={`combat-name-${t.id}`}
+                  value={t.label || ""}
+                  onChange={(e) => updateToken(t.id, { label: e.target.value })}
+                  placeholder="Unnamed"
+                  className="bg-transparent border-0 h-7 px-1 text-sm focus-visible:ring-0 flex-1 min-w-0"
+                />
+                {t.hp != null && t.hpMax != null && (
+                  <span className="text-[10px] font-mono-cart text-stone-400 shrink-0 flex items-center gap-0.5">
+                    <Heart className="w-2.5 h-2.5" /> {t.hp}/{t.hpMax}
+                  </span>
+                )}
+                <Input
+                  data-testid={`combat-init-${t.id}`}
+                  type="number"
+                  value={t.init ?? ""}
+                  onChange={(e) =>
+                    updateToken(t.id, {
+                      init: e.target.value === "" ? null : parseInt(e.target.value, 10),
+                    })
+                  }
+                  placeholder="—"
+                  className="bg-black/40 border-white/10 h-7 w-12 text-xs px-1.5 text-center"
+                />
+              </div>
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <Input
+                  data-testid={`combat-dmg-${t.id}`}
+                  type="number"
+                  value={damageAmt[t.id] ?? ""}
+                  onChange={(e) =>
+                    setDamageAmt((m) => ({ ...m, [t.id]: e.target.value }))
+                  }
+                  placeholder="dmg"
+                  className="bg-black/30 border-white/10 h-6 w-14 text-[11px] px-1.5 text-center"
+                />
+                <button
+                  data-testid={`combat-apply-dmg-${t.id}`}
+                  onClick={() => {
+                    const v = parseInt(damageAmt[t.id] || "0", 10);
+                    if (!v) return;
+                    applyDamage(t.id, v);
+                  }}
+                  className="px-2 h-6 rounded-md bg-red-600/15 hover:bg-red-600/30 text-red-300 text-[10px] font-mono-cart uppercase tracking-wider transition"
+                >
+                  −HP
+                </button>
+                <button
+                  data-testid={`combat-apply-heal-${t.id}`}
+                  onClick={() => {
+                    const v = parseInt(damageAmt[t.id] || "0", 10);
+                    if (!v) return;
+                    applyDamage(t.id, -v);
+                  }}
+                  className="px-2 h-6 rounded-md bg-emerald-600/15 hover:bg-emerald-600/30 text-emerald-300 text-[10px] font-mono-cart uppercase tracking-wider transition"
+                >
+                  +HP
+                </button>
+                {rollLog[0] && (
+                  <button
+                    data-testid={`combat-apply-roll-${t.id}`}
+                    onClick={() => applyDamage(t.id, rollLog[0].total)}
+                    title={`Apply last roll (${rollLog[0].total}) as damage`}
+                    className="px-1.5 h-6 rounded-md bg-amber-600/15 hover:bg-amber-600/30 text-amber-400 text-[10px] font-mono-cart uppercase tracking-wider transition flex items-center gap-1"
+                  >
+                    <Crosshair className="w-2.5 h-2.5" />
+                    {rollLog[0].total}
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}

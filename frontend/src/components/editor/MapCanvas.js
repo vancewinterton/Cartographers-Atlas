@@ -335,46 +335,57 @@ export default function MapCanvas({
     setDrawing(null);
   };
 
-  // Soft erase: filters BRUSH stroke points within the circle (partial erase), and deletes
-  // non-brush shapes (rect/circle/polygon/text/image/AI regions) + pins intersecting the circle
-  // since those can't be partially erased.
+  // Soft erase: drag-based partial eraser. Walks the brush points and **splits** the stroke
+  // wherever the eraser circle passes through — leaving real gaps instead of bridging the
+  // remaining points with a straight line. Non-brush shapes / pins are still deleted when
+  // intersected.
   const applySoftErase = (p) => {
     const r = Math.max(6, brushSize * 3);
     const r2 = r * r;
     const visibleLayerIds = new Set(layers.filter((l) => l.visible && !l.locked).map((l) => l.id));
     let changed = false;
-    const next = shapes
-      .map((s) => {
-        if (!visibleLayerIds.has(s.layerId)) return s;
-        if (s.type === "brush") {
-          const newPoints = [];
-          for (let i = 0; i < s.points.length; i += 2) {
-            const dx = s.points[i] - p.x;
-            const dy = s.points[i + 1] - p.y;
-            if (dx * dx + dy * dy > r2) {
-              newPoints.push(s.points[i], s.points[i + 1]);
-            } else {
-              changed = true;
-            }
+    const next = [];
+    for (const s of shapes) {
+      if (!visibleLayerIds.has(s.layerId)) {
+        next.push(s);
+        continue;
+      }
+      if (s.type === "brush") {
+        const segments = [[]];
+        for (let i = 0; i < s.points.length; i += 2) {
+          const dx = s.points[i] - p.x;
+          const dy = s.points[i + 1] - p.y;
+          const inside = dx * dx + dy * dy <= r2;
+          if (inside) {
+            changed = true;
+            if (segments[segments.length - 1].length > 0) segments.push([]);
+          } else {
+            segments[segments.length - 1].push(s.points[i], s.points[i + 1]);
           }
-          if (newPoints.length === s.points.length) return s;
-          return { ...s, points: newPoints };
         }
-        if (
-          (s.type === "rect" ||
-            s.type === "circle" ||
-            s.type === "polygon" ||
-            s.type === "text" ||
-            s.type === "image" ||
-            s.type === "ai-region") &&
-          circleIntersectsShape(s, p, r)
-        ) {
-          changed = true;
-          return null;
+        const valid = segments.filter((seg) => seg.length >= 4);
+        if (valid.length === 0) continue;
+        if (valid.length === 1 && valid[0].length === s.points.length) {
+          next.push(s);
+          continue;
         }
-        return s;
-      })
-      .filter((s) => s && (s.type !== "brush" || s.points.length >= 4));
+        next.push(...valid.map((seg, idx) => ({ ...s, id: idx === 0 ? s.id : rid(), points: seg })));
+        continue;
+      }
+      if (
+        (s.type === "rect" ||
+          s.type === "circle" ||
+          s.type === "polygon" ||
+          s.type === "text" ||
+          s.type === "image" ||
+          s.type === "ai-region") &&
+        circleIntersectsShape(s, p, r)
+      ) {
+        changed = true;
+        continue;
+      }
+      next.push(s);
+    }
     if (changed) setShapes(next);
 
     const remainingPins = pins.filter((pn) => Math.hypot(pn.x - p.x, pn.y - p.y) > r);
@@ -570,12 +581,19 @@ export default function MapCanvas({
                     showTokenLabels={showTokenLabels}
                     showHealthBars={showHealthBars}
                     isSelected={selectedIds?.has(s.id)}
-                    onDragEnd={(nx, ny) => {
+                    onDragEnd={(nx, ny, dx, dy) => {
                       onPushHistory();
+                      const isGroup = selectedIds && selectedIds.has(s.id) && selectedIds.size > 1;
                       setShapes(
                         shapes.map((sh) => {
+                          if (isGroup && selectedIds.has(sh.id)) {
+                            if (sh.type === "token") {
+                              const trail = [...(sh.trail || []), { x: sh.x, y: sh.y }].slice(-4);
+                              return { ...sh, x: sh.x + dx, y: sh.y + dy, trail };
+                            }
+                            return { ...sh, x: sh.x + dx, y: sh.y + dy };
+                          }
                           if (sh.id !== s.id) return sh;
-                          // For tokens, push prior position to trail (cap 4)
                           if (sh.type === "token") {
                             const trail = [...(sh.trail || []), { x: sh.x, y: sh.y }].slice(-4);
                             return { ...sh, x: nx, y: ny, trail };
@@ -837,7 +855,9 @@ function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, sh
     dragRef.current = null;
     if (!d) return;
     if (d.moved && d.lastX != null) {
-      onDragEnd(d.lastX, d.lastY);
+      const dx = d.lastX - d.startMapX;
+      const dy = d.lastY - d.startMapY;
+      onDragEnd(d.lastX, d.lastY, dx, dy);
     } else {
       onClick(e);
     }
@@ -1180,7 +1200,9 @@ function PinButton({ pin, Icon, scale, W, H, tool, onClick, onDragEnd }) {
     dragRef.current = null;
     if (!d) return;
     if (d.moved && d.lastX != null) {
-      onDragEnd(d.lastX, d.lastY);
+      const dx = d.lastX - d.startMapX;
+      const dy = d.lastY - d.startMapY;
+      onDragEnd(d.lastX, d.lastY, dx, dy);
     } else {
       onClick(e);
     }
