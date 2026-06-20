@@ -61,6 +61,8 @@ export default function MapCanvas({
   onShapeClick,
   readOnly,
   showTokenLabels = true,
+  showHealthBars = true,
+  showGhostTrails = true,
 }) {
   const W = mapDoc.image_width || 1600;
   const H = mapDoc.image_height || 1000;
@@ -309,42 +311,33 @@ export default function MapCanvas({
     setDrawing(null);
   };
 
-  // Soft erase: removes BRUSH stroke points within radius AND deletes any other shape/pin
-  // whose bounding box intersects the eraser circle (on visible, unlocked layers only).
+  // Soft erase: HARD eraser — deletes any brush stroke/shape/pin that intersects the circle.
   const applySoftErase = (p) => {
     const r = Math.max(6, brushSize * 3);
-    const r2 = r * r;
     const visibleLayerIds = new Set(layers.filter((l) => l.visible && !l.locked).map((l) => l.id));
-
-    // Erase brush points; delete other shapes that intersect the circle
     let changed = false;
-    const next = shapes
-      .map((s) => {
-        if (!visibleLayerIds.has(s.layerId)) return s;
-        if (s.type === "brush") {
-          const newPoints = [];
-          for (let i = 0; i < s.points.length; i += 2) {
-            const dx = s.points[i] - p.x;
-            const dy = s.points[i + 1] - p.y;
-            if (dx * dx + dy * dy > r2) {
-              newPoints.push(s.points[i], s.points[i + 1]);
-            } else {
-              changed = true;
-            }
+    const next = shapes.filter((s) => {
+      if (!visibleLayerIds.has(s.layerId)) return true;
+      if (s.type === "brush") {
+        // Delete whole stroke if any point is within radius
+        for (let i = 0; i < s.points.length; i += 2) {
+          const dx = s.points[i] - p.x;
+          const dy = s.points[i + 1] - p.y;
+          if (dx * dx + dy * dy <= r * r) {
+            changed = true;
+            return false;
           }
-          if (newPoints.length === s.points.length) return s;
-          return { ...s, points: newPoints };
         }
-        if (circleIntersectsShape(s, p, r)) {
-          changed = true;
-          return null;
-        }
-        return s;
-      })
-      .filter((s) => s && (s.type !== "brush" || s.points.length >= 4));
+        return true;
+      }
+      if (circleIntersectsShape(s, p, r)) {
+        changed = true;
+        return false;
+      }
+      return true;
+    });
     if (changed) setShapes(next);
 
-    // Pins
     const remainingPins = pins.filter((pn) => Math.hypot(pn.x - p.x, pn.y - p.y) > r);
     if (remainingPins.length !== pins.length) setPins(remainingPins);
   };
@@ -459,7 +452,7 @@ export default function MapCanvas({
                     <ShapeEl key={s.id} s={s} />
                   ))}
                 {/* Ghost trails for tokens (drawn in SVG so they sit behind tokens) */}
-                {shapes
+                {showGhostTrails && shapes
                   .filter(
                     (s) =>
                       s.type === "token" &&
@@ -523,6 +516,7 @@ export default function MapCanvas({
                     tool={tool}
                     readOnly={readOnly}
                     showTokenLabels={showTokenLabels}
+                    showHealthBars={showHealthBars}
                     onDragEnd={(nx, ny) => {
                       onPushHistory();
                       setShapes(
@@ -749,7 +743,7 @@ function GridPreview({ s }) {
 }
 
 // Draggable HTML element rendering for assets, tokens, and grids
-function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, onDragEnd, onClick }) {
+function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, showHealthBars = true, onDragEnd, onClick }) {
   const ref = useRef(null);
   const dragRef = useRef(null);
 
@@ -842,7 +836,7 @@ function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, on
             </span>
           ) : null}
         </div>
-        {showHP && (
+        {showHP && showHealthBars && (
           <div
             className="absolute left-1/2 -translate-x-1/2 -top-1.5 h-1 rounded-full overflow-hidden bg-black/70"
             style={{ width: Math.max(20, sz) }}
@@ -858,7 +852,7 @@ function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, on
         )}
         {showLabel && showTokenLabels && (
           <div
-            className="absolute left-1/2 -translate-x-1/2 -bottom-6 whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium glass text-stone-100 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+            className="absolute left-1/2 -translate-x-1/2 -bottom-6 whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium glass text-stone-100 pointer-events-none transition-opacity duration-150"
             style={{ fontSize: Math.max(9, Math.min(13, sz / 4)) }}
           >
             {shape.label}

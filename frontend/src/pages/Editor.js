@@ -53,6 +53,8 @@ export default function Editor() {
   const [editingShape, setEditingShape] = useState(null);
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [showTokenLabels, setShowTokenLabels] = useState(true);
+  const [showHealthBars, setShowHealthBars] = useState(true);
+  const [showGhostTrails, setShowGhostTrails] = useState(true);
   const [combatOpen, setCombatOpen] = useState(false);
 
   // Wrap setTool so picking any tool auto-reopens the properties panel
@@ -289,6 +291,8 @@ export default function Editor() {
         pinColorFilter={pinColorFilter}
         onShapeClick={(s) => setEditingShape(s)}
         showTokenLabels={showTokenLabels}
+        showHealthBars={showHealthBars}
+        showGhostTrails={showGhostTrails}
       />
 
       <TopBar
@@ -331,6 +335,10 @@ export default function Editor() {
           setPinColorFilter={setPinColorFilter}
           showTokenLabels={showTokenLabels}
           setShowTokenLabels={setShowTokenLabels}
+          showHealthBars={showHealthBars}
+          setShowHealthBars={setShowHealthBars}
+          showGhostTrails={showGhostTrails}
+          setShowGhostTrails={setShowGhostTrails}
           onClose={() => setPropertiesOpen(false)}
         />
       ) : (

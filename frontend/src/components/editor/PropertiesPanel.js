@@ -32,6 +32,10 @@ export default function PropertiesPanel({
   setPinColorFilter,
   showTokenLabels,
   setShowTokenLabels,
+  showHealthBars,
+  setShowHealthBars,
+  showGhostTrails,
+  setShowGhostTrails,
   onClose,
 }) {
   const addLayer = () => {
@@ -58,16 +62,22 @@ export default function PropertiesPanel({
   return (
     <div
       data-testid="properties-panel"
-      className="absolute right-4 top-20 bottom-4 z-30 w-80 glass rounded-2xl p-5 overflow-y-auto"
+      className="absolute right-4 top-20 bottom-4 z-30 w-80 glass rounded-2xl overflow-y-auto"
     >
-      <button
-        data-testid="properties-close"
-        onClick={onClose}
-        title="Hide panel (it will pop back when you pick a tool)"
-        className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/40 ring-1 ring-white/10 text-stone-300 hover:text-amber-500 hover:bg-amber-500/10 hover:ring-amber-700/40 flex items-center justify-center transition"
-      >
-        <X className="w-4 h-4" />
-      </button>
+      <div className="sticky top-0 z-20 flex items-center justify-between px-5 pt-4 pb-3 bg-gradient-to-b from-[#1a1714ee] via-[#1a1714cc] to-transparent backdrop-blur-md">
+        <span className="font-mono-cart text-[10px] uppercase tracking-[0.25em] text-stone-500">
+          Tools &amp; Layers
+        </span>
+        <button
+          data-testid="properties-close"
+          onClick={onClose}
+          title="Hide panel (pop back by picking a tool)"
+          className="w-8 h-8 rounded-full bg-black/50 ring-1 ring-white/15 text-stone-200 hover:text-amber-500 hover:bg-amber-500/10 hover:ring-amber-700/40 flex items-center justify-center transition shrink-0"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="px-5 pb-5">
       {/* Brush */}
       <Section title="Stroke">
         <div className="grid grid-cols-8 gap-2 mb-3">
@@ -189,14 +199,32 @@ export default function PropertiesPanel({
       </Section>
 
       <Section title="Display">
-        <label className="flex items-center justify-between rounded-lg px-2.5 py-2 bg-black/20">
-          <span className="text-sm text-stone-200">Show token names</span>
-          <Switch
-            data-testid="toggle-token-labels"
-            checked={!!showTokenLabels}
-            onCheckedChange={setShowTokenLabels}
-          />
-        </label>
+        <div className="space-y-2">
+          <label className="flex items-center justify-between rounded-lg px-2.5 py-2 bg-black/20">
+            <span className="text-sm text-stone-200">Show token names</span>
+            <Switch
+              data-testid="toggle-token-labels"
+              checked={!!showTokenLabels}
+              onCheckedChange={setShowTokenLabels}
+            />
+          </label>
+          <label className="flex items-center justify-between rounded-lg px-2.5 py-2 bg-black/20">
+            <span className="text-sm text-stone-200">Show health bars</span>
+            <Switch
+              data-testid="toggle-health-bars"
+              checked={!!showHealthBars}
+              onCheckedChange={setShowHealthBars}
+            />
+          </label>
+          <label className="flex items-center justify-between rounded-lg px-2.5 py-2 bg-black/20">
+            <span className="text-sm text-stone-200">Show ghost trails</span>
+            <Switch
+              data-testid="toggle-ghost-trails"
+              checked={!!showGhostTrails}
+              onCheckedChange={setShowGhostTrails}
+            />
+          </label>
+        </div>
       </Section>
 
       {/* Pin color filter */}
@@ -214,6 +242,7 @@ export default function PropertiesPanel({
           />
         </Section>
       )}
+      </div>
     </div>
   );
 }
