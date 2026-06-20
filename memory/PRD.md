@@ -88,9 +88,20 @@ Build a D&D campaign map editor inspired by mapgenie.io/skyrim that:
   - Backend: 5 new pytest cases (test_hp_bars_public.py) — 25/25 backend tests pass
 - Frontend testing 100% on critical paths.
 
+## Implemented (2026-06-20 — iteration 5)
+- **Add to Combat Tracker from the map**:
+  - Single token: ShapeEditPopover now has `shape-add-combat-btn` (only for tokens) → imports that token into the tracker and opens it.
+  - Multi-select: selection-actionbar shows `bulk-add-combat` when any selected shape is a token.
+  - Both routes share `addTokensToCombat()` in Editor.js which dispatches `IMPORT_FROM_MAP` via `combatDispatchRef` (captured by `CombatDispatchBridge` inside CombatProvider).
+- **Bidirectional real-time sync (DM ↔ viewers)**:
+  - Editor now polls (`useMapPolling`, 2.5s) and applies remote changes via `applyRemoteMap`, guarded by `lastSavedTsRef`/`lastLocalEditRef`/`skipNextAutosaveRef` watermarks to prevent echo loops (3s local-edit grace window).
+  - Viewers on the share link get paint tools: `viewer-tool-dock` (pan/paint) + reused PaintPanel; `persistShapes` made robust to empty layers. Verified both directions end-to-end (token drag + token placement + brush strokes propagate).
+- **Spray paint** now renders a peppered scatter of dots (`sprayDots()` deterministic via `pseudoRand`) instead of a dashed highlighter line.
+- **Soft Eraser** now erases continuously along a click-drag (onPointerMove calls `applySoftErase` while dragging), ending on release. Hard eraser also drag-deletes shapes under the cursor.
+- **Hero Token tool** added to ToolDock (`tool-hero-token`, next to Enemy Token `tool-token`): places blue (#3B82F6) hero tokens hp 30/30; enemy token tool places red (#EF4444) hp 15/15. Blue tokens classify as Hero/pc on combat import.
+
 ## Backlog
 - P1: fal.ai or alternate AI upscaler when user is ready to pay or wants user-supplied keys
 - P2: Mask-based inpainting (paint a precise mask then describe what fills it)
-- P2: Pin selection / multi-select / cut-copy-paste shapes
-- P2: Shared / read-only public campaign view for players
-- P2: Real-time multi-user collaboration
+- P2: Upgrade polling sync to WebSocket/SSE for snappier (<1s) real-time collaboration
+- P2: Fix carry-over React hydration warning ('<option> cannot be a child of <span>') in CombatantCard target-select
