@@ -100,6 +100,14 @@ Build a D&D campaign map editor inspired by mapgenie.io/skyrim that:
 - **Soft Eraser** now erases continuously along a click-drag (onPointerMove calls `applySoftErase` while dragging), ending on release. Hard eraser also drag-deletes shapes under the cursor.
 - **Hero Token tool** added to ToolDock (`tool-hero-token`, next to Enemy Token `tool-token`): places blue (#3B82F6) hero tokens hp 30/30; enemy token tool places red (#EF4444) hp 15/15. Blue tokens classify as Hero/pc on combat import.
 
+## Implemented (2026-06-20 — iteration 6)
+- **Blank white canvas**: empty-map state shows `blank-canvas-btn` → `setBlankCanvas()` paints a white PNG (canvas.toDataURL) into `image_data`. Alternative to importing an image.
+- **Token Library** (per-browser localStorage, key `cartographer_token_library_v1`): `lib/tokenLibrary.js` + `TokenLibraryPanel.js`. Save tokens (name, **description**, color, hp/ac, attacks) and drop onto any map/campaign anytime. Available to the DM (TopBar `library-btn`) AND share-link viewers (`viewer-tool-library`). "Save to Library" button on the token edit panel; tokens now have a Description textarea.
+- **Faster sync**: editor autosave 1.5s→0.6s, polling 2.5s→1.2s, local-edit grace 3s→1.2s; share polling 2s→1.2s, persist debounce 0.4s→0.25s. ~2-3s round-trip (was ~12s).
+- **Fog of War** paint variant: dark cover (`#0f172a`) rendered in a dedicated SVG overlay ABOVE tokens — `strokeOpacity` 0.3 for DM (sees through) vs 0.92 for share viewers (opaque). **Pencil variant removed.**
+- **Text tool fixed**: clicking places an editable text label and opens the edit panel (content/color/size). Text is now an HTML MoveableShape (clickable/draggable/deletable). Old fragile inline input removed.
+- **Polygon fresh-start**: switching tools (or finishing) now clears the in-progress polygon (`useEffect` on `[tool]`), so a new click starts a brand-new shape. Added `polygon-preview-point` testids.
+
 ## Backlog
 - P1: fal.ai or alternate AI upscaler when user is ready to pay or wants user-supplied keys
 - P2: Mask-based inpainting (paint a precise mask then describe what fills it)

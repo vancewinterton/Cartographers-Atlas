@@ -594,15 +594,31 @@ export default function MapCanvas({
                   />
                 )}
                 {polygonPts && (
-                  <polyline
-                    points={pairs(polygonPts).join(" ")}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth={brushSize}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeDasharray="6 6"
-                  />
+                  <>
+                    <polyline
+                      data-testid="polygon-preview-line"
+                      points={pairs(polygonPts).join(" ")}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={brushSize}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeDasharray="6 6"
+                    />
+                    {pairs(polygonPts).map((pt, i) => {
+                      const [px, py] = pt.split(",").map(Number);
+                      return (
+                        <circle
+                          key={i}
+                          data-testid="polygon-preview-point"
+                          cx={px}
+                          cy={py}
+                          r={Math.max(3, brushSize)}
+                          fill={color}
+                        />
+                      );
+                    })}
+                  </>
                 )}
               </svg>
 
