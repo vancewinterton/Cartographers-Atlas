@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Share as ShareAPI } from "../lib/api";
+import { Share as ShareAPI, Maps } from "../lib/api";
 import MapCanvas from "../components/editor/MapCanvas";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet";
-import { Compass, MapPinned, ArrowUpRight, ExternalLink } from "lucide-react";
+import { Compass, MapPinned, ArrowUpRight, ExternalLink, Wifi } from "lucide-react";
 import { Button } from "../components/ui/button";
+import useMapPolling from "../lib/useMapPolling";
 
 export default function SharePage() {
   const { token } = useParams();
@@ -12,6 +13,11 @@ export default function SharePage() {
   const [error, setError] = useState(null);
   const [currentMapId, setCurrentMapId] = useState(null);
   const [pinSheetPin, setPinSheetPin] = useState(null);
+  // localShapes lets viewers drag tokens optimistically before the server confirms
+  const [localShapes, setLocalShapes] = useState(null);
+  const [synced, setSynced] = useState(true);
+  const saveTimer = useRef(null);
+  const draggingRef = useRef(false);
 
   useEffect(() => {
     ShareAPI.get(token)
@@ -25,6 +31,67 @@ export default function SharePage() {
       });
   }, [token]);
 
+  const currentMap = data?.maps?.find((m) => m.id === currentMapId) || null;
+  const serverShapes = useMemo(
+    () => (currentMap?.layers || []).flatMap((l) => l.shapes || []),
+    [currentMap]
+  );
+  const allShapes = localShapes ?? serverShapes;
+
+  // Reset local shapes whenever the current map changes
+  useEffect(() => {
+    setLocalShapes(null);
+  }, [currentMapId]);
+
+  // Apply a fresh map snapshot from the server (from polling) into local state.
+  const applyFreshMap = (mapDoc) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        maps: prev.maps.map((m) => (m.id === mapDoc.id ? mapDoc : m)),
+      };
+    });
+    // Discard local overlay only if viewer is not in the middle of a drag
+    if (!draggingRef.current) setLocalShapes(null);
+    setSynced(true);
+  };
+
+  useMapPolling({
+    mapId: currentMapId,
+    localUpdatedAt: currentMap?.updated_at,
+    onUpdate: applyFreshMap,
+    intervalMs: 2000,
+    paused: false,
+  });
+
+  // Persist local shape changes (e.g. after a token drag) back to the server.
+  const persistShapes = (nextShapes) => {
+    if (!currentMap) return;
+    const layers = (currentMap.layers || []).map((l) => ({
+      ...l,
+      shapes: nextShapes.filter((s) => s.layerId === l.id),
+    }));
+    setSynced(false);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const saved = await Maps.update(currentMap.id, { layers });
+        // Server bumps updated_at; merge it so polling doesn't re-fetch the same rev.
+        setData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            maps: prev.maps.map((m) => (m.id === saved.id ? saved : m)),
+          };
+        });
+        setSynced(true);
+      } catch {
+        setSynced(false);
+      }
+    }, 400);
+  };
+
   if (error) {
     return (
       <div className="h-screen flex flex-col items-center justify-center text-center px-4">
@@ -34,7 +101,7 @@ export default function SharePage() {
       </div>
     );
   }
-  if (!data || !currentMapId) {
+  if (!data || !currentMapId || !currentMap) {
     return (
       <div className="h-screen flex items-center justify-center text-stone-500 font-mono-cart">
         Loading shared atlas…
@@ -42,8 +109,6 @@ export default function SharePage() {
     );
   }
 
-  const currentMap = data.maps.find((m) => m.id === currentMapId);
-  const allShapes = (currentMap.layers || []).flatMap((l) => l.shapes || []);
   const layers = (currentMap.layers || []).length
     ? currentMap.layers.map((l) => ({
         id: l.id,
@@ -64,7 +129,18 @@ export default function SharePage() {
         color="#D97706"
         brushSize={4}
         shapes={allShapes}
-        setShapes={() => {}}
+        setShapes={(updater) => {
+          // setShapes may be called with either an updater fn or the new array
+          const next =
+            typeof updater === "function" ? updater(allShapes) : updater;
+          draggingRef.current = true;
+          setLocalShapes(next);
+          persistShapes(next);
+          // unlock polling overrides shortly after the drag ends
+          setTimeout(() => {
+            draggingRef.current = false;
+          }, 1200);
+        }}
         pins={currentMap.pins || []}
         setPins={() => {}}
         layers={layers}
@@ -75,11 +151,15 @@ export default function SharePage() {
         pinColorFilter={new Set()}
         showHealthBars={data.campaign.hp_bars_public !== false}
         readOnly
+        viewerCanDragTokens
       />
 
       {/* Floating share header */}
       <div className="absolute top-4 left-4 right-4 z-30 flex items-center justify-between pointer-events-none">
-        <div className="glass rounded-2xl px-4 py-2 flex items-center gap-3 pointer-events-auto">
+        <div
+          data-testid="share-header"
+          className="glass rounded-2xl px-4 py-2 flex items-center gap-3 pointer-events-auto"
+        >
           <Compass className="w-4 h-4 text-amber-500" />
           <div className="flex flex-col leading-tight">
             <span className="font-mono-cart text-[10px] uppercase tracking-widest text-stone-500">
@@ -90,7 +170,19 @@ export default function SharePage() {
             </span>
           </div>
           <span className="ml-3 px-2 py-0.5 rounded-full bg-amber-600/10 text-amber-500 font-mono-cart text-[9px] uppercase tracking-wider border border-amber-700/30">
-            Read only
+            Player View
+          </span>
+          <span
+            data-testid="share-sync-status"
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-full font-mono-cart text-[9px] uppercase tracking-wider border ${
+              synced
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-700/30"
+                : "bg-amber-500/10 text-amber-400 border-amber-700/30 animate-pulse"
+            }`}
+            title={synced ? "Synced with DM" : "Syncing…"}
+          >
+            <Wifi className="w-2.5 h-2.5" />
+            {synced ? "Live" : "Sync…"}
           </span>
         </div>
       </div>
@@ -123,6 +215,11 @@ export default function SharePage() {
           </div>
         </div>
       )}
+
+      {/* Hint */}
+      <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 glass rounded-full px-4 py-1.5 text-[10px] font-mono-cart uppercase tracking-widest text-stone-400 pointer-events-none">
+        🖐 Drag heroes & enemies · Pan with empty space · Click pins for details
+      </div>
 
       {/* Pin details (read-only) */}
       <Sheet open={!!pinSheetPin} onOpenChange={(o) => !o && setPinSheetPin(null)}>

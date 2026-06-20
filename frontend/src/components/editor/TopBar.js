@@ -76,13 +76,42 @@ export default function TopBar({
         ? `${window.location.origin}/campaign/${campaign.id}`
         : shareUrl;
     if (!url) return;
+    // First try the modern clipboard API; fall back to execCommand for iframe contexts
+    // (the Emergent preview is iframed and often lacks clipboard-write permission).
+    const fallbackCopy = () => {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.top = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try {
+        ok = document.execCommand("copy");
+      } catch {
+        ok = false;
+      }
+      document.body.removeChild(ta);
+      return ok;
+    };
+    let success = false;
     try {
-      await navigator.clipboard.writeText(url);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        success = true;
+      }
+    } catch {
+      success = false;
+    }
+    if (!success) success = fallbackCopy();
+    if (success) {
       setCopied(mode);
       setTimeout(() => setCopied(false), 1500);
       toast.success(mode === "edit" ? "Edit link copied" : "View link copied");
-    } catch {
-      toast.error("Couldn't copy");
+    } else {
+      // Last resort: show a prompt with the URL so the user can copy manually
+      toast.error("Couldn't auto-copy — the URL is shown in the input above");
     }
   };
 
@@ -276,6 +305,13 @@ export default function TopBar({
                   )}
                 </Button>
               </div>
+              <Input
+                readOnly
+                onFocus={(e) => e.target.select()}
+                value={`${window.location.origin}/campaign/${campaign.id}`}
+                data-testid="edit-url-input"
+                className="mt-2 bg-black/30 border-white/10 focus-visible:ring-1 focus-visible:ring-amber-500/40 px-2 text-stone-300 font-mono-cart text-xs h-8"
+              />
             </div>
 
             <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/30 px-4 py-3">

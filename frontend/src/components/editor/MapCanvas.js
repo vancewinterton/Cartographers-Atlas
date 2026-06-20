@@ -67,6 +67,7 @@ export default function MapCanvas({
   showGhostTrails = true,
   selectedIds,
   setSelectedIds,
+  viewerCanDragTokens = false,
 }) {
   const W = mapDoc.image_width || 1600;
   const H = mapDoc.image_height || 1000;
@@ -567,6 +568,7 @@ export default function MapCanvas({
                     H={H}
                     tool={tool}
                     readOnly={readOnly}
+                    viewerCanDragTokens={viewerCanDragTokens}
                     showTokenLabels={showTokenLabels}
                     showHealthBars={showHealthBars}
                     isSelected={selectedIds?.has(s.id)}
@@ -808,12 +810,17 @@ function GridPreview({ s }) {
 }
 
 // Draggable HTML element rendering for assets, tokens, and grids
-function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, showHealthBars = true, isSelected = false, onDragEnd, onClick }) {
+function MoveableShape({ shape, W, H, tool, readOnly, viewerCanDragTokens = false, showTokenLabels = true, showHealthBars = true, isSelected = false, onDragEnd, onClick }) {
   const ref = useRef(null);
   const dragRef = useRef(null);
 
+  // Viewer mode: tokens are still draggable so players can move their heroes,
+  // but everything else stays locked.
+  const interactive =
+    !readOnly || (viewerCanDragTokens && shape.type === "token");
+
   const onPointerDown = (e) => {
-    if (readOnly || e.button !== 0) return;
+    if (!interactive || e.button !== 0) return;
     e.stopPropagation();
     const target = ref.current?.closest("[data-canvas-content]");
     if (!target) return;
@@ -883,7 +890,7 @@ function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, sh
           top: shape.y - sz / 2,
           width: sz,
           height: sz,
-          cursor: readOnly ? "default" : tool === "erase" ? "not-allowed" : "grab",
+          cursor: !interactive ? "default" : tool === "erase" ? "not-allowed" : "grab",
           opacity: shape.hidden ? 0.32 : 1,
         }}
         onPointerDown={onPointerDown}
