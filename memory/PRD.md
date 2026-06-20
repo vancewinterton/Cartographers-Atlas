@@ -68,6 +68,26 @@ Build a D&D campaign map editor inspired by mapgenie.io/skyrim that:
 
 
 
+
+## Implemented (2026-02-20 — Paint Panel + Hero spawn + damage targeting + HP public)
+- **Paint Panel** (replaces single Brush button + standalone Erasers):
+  - 8 paint variants: Brush, Marker, Highlighter, Pencil, Spray, Ink Pen, Soft Eraser, Hard Eraser
+  - Each variant atomically sets {tool, brushVariant, brushOpacity, brushSize} via applyVariant()
+  - 11 color swatches + HTML color picker + size slider (1–60) + opacity slider (10–100%)
+  - Live SVG stroke preview at bottom of panel
+  - MapCanvas renders brush strokes with variant-specific strokeOpacity/linecap/dasharray
+- **Combat Tracker enhancements**:
+  - 'Add PC' renamed to 'Add Hero' (testid kept as `add-pc` for compatibility)
+  - Add Hero / Add Enemy now also spawn a matching colored token on the map (center) and link via `sourceTokenId`
+  - Colored dot on each combatant card is now a `focus-token-<id>` button → opens ShapeEditPopover for the linked map token
+  - AttackResultBlock has real target picker: dropdown of all OTHER alive combatants, "Apply N" button subtracts total damage, per-line "Apply" subtracts that hit only; combat log records "💥 attacker hits target for X damage"
+- **Campaign-level HP bar visibility**:
+  - New field `Campaign.hp_bars_public:bool` (default True)
+  - PropertiesPanel toggle "Show HP to players" — patches backend via PATCH /api/campaigns/{id}
+  - Share.js respects flag; when off, HP bars hidden on tokens in the public /share view (DM still sees them in editor)
+  - Backend: 5 new pytest cases (test_hp_bars_public.py) — 25/25 backend tests pass
+- Frontend testing 100% on critical paths.
+
 ## Backlog
 - P1: fal.ai or alternate AI upscaler when user is ready to pay or wants user-supplied keys
 - P2: Mask-based inpainting (paint a precise mask then describe what fills it)

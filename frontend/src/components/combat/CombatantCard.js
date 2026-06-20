@@ -604,8 +604,7 @@ function AttackResultBlock({
                 <option value="">Apply damage to…</option>
                 {validTargets.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.kind === "pc" ? "🧝 " : "👹 "} {t.name} — {t.currentHp}/
-                    {t.maxHp}
+                    {`${t.kind === "pc" ? "🧝 " : "👹 "}${t.name} — ${t.currentHp}/${t.maxHp}`}
                   </option>
                 ))}
               </select>
