@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, useRef } from "react";
+import { createContext, useContext, useEffect, useMemo, useReducer } from "react";
 
 /**
  * Combat domain model
@@ -427,38 +427,32 @@ function reducer(state, action) {
 // ───────── context ─────────
 const CombatContext = createContext(null);
 
-export function CombatProvider({ children, storageKey = "combat_state_default" }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
-  const hydrated = useRef(false);
-
-  // hydrate from localStorage
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        dispatch({
-          type: "HYDRATE",
-          payload: {
-            ...initialState,
-            ...parsed,
-            settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) },
-          },
-        });
-      }
-    } catch (e) {
-      // ignore parse errors
+function lazyInit(storageKey) {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        ...initialState,
+        ...parsed,
+        settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) },
+      };
     }
-    hydrated.current = true;
-  }, [storageKey]);
+  } catch {
+    /* invalid stored JSON */
+  }
+  return initialState;
+}
 
-  // persist
+export function CombatProvider({ children, storageKey = "combat_state_default" }) {
+  const [state, dispatch] = useReducer(reducer, storageKey, lazyInit);
+
+  // persist every state change — no race because state was seeded from storage
   useEffect(() => {
-    if (!hydrated.current) return;
     try {
       localStorage.setItem(storageKey, JSON.stringify(state));
     } catch {
-      /* localStorage quota */
+      /* quota exceeded */
     }
   }, [state, storageKey]);
 

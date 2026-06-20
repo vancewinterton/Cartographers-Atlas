@@ -310,7 +310,7 @@ export default function Editor() {
   }
 
   return (
-    <CombatProvider storageKey={`combat_state_${campaignId}`}>
+    <CombatProvider key={campaignId} storageKey={`combat_state_${campaignId}`}>
     <div
       className="h-screen w-screen overflow-hidden canvas-bg relative"
       data-testid="editor-page"

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useCombat, makeCombatant } from "./CombatContext";
 import CombatantCard from "./CombatantCard";
 import CombatLog from "./CombatLog";
@@ -36,13 +36,6 @@ export default function CombatTrackerPanel({ onClose }) {
   const [tab, setTab] = useState("initiative"); // 'initiative' | 'log' | 'encounters'
   const [showSettings, setShowSettings] = useState(false);
   const [encounterName, setEncounterName] = useState("");
-
-  // Reset to round 1 if combat ends
-  useEffect(() => {
-    if (!state.active && state.round !== 0) {
-      // already handled by END_COMBAT
-    }
-  }, [state.active, state.round]);
 
   const canStart = state.combatants.length > 0;
 

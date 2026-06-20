@@ -34,6 +34,30 @@ Build a D&D campaign map editor inspired by mapgenie.io/skyrim that:
 - **Recursive cascade delete** for nested sub-sub-maps (any depth)
 - **Export PNG** — composes base image + shapes + pins onto a canvas and downloads
 
+## Implemented (2026-02-20 — Combat Tracker rebuild)
+- **Brand-new Combat Tracker** replacing old CombatPanel.js (deleted)
+- Architecture: React Context + useReducer (`/app/frontend/src/components/combat/`)
+  - `CombatContext.js` — provider, reducer, dice utilities, executeAttack (pure)
+  - `CombatTrackerPanel.js` — main UI with Initiative/Log/Encounters tabs + settings drawer
+  - `CombatantCard.js` — per-combatant HP bar, AC, init, HP controls, conditions, attacks
+  - `CombatLog.js` — timestamped, color-coded combat log
+- Features: Start/End Combat, Round counter (auto-increments), Next/Prev Turn, current-turn highlight
+- Combatants: PC vs Enemy distinction, name, color, AC, initiative modifier + roll, HP/maxHP
+- Status: Alive (>50%) / Bloodied (≤50%) / Dead (=0) with badge + colored HP bar
+- HP controls: −5 / −1 / +1 / +5 / Heal Full / Set HP via input + Enter
+- Attack rolling: per-attack panel with name/bonus/dice/dmg-mod/numAttacks
+  - Rolls 1d20+bonus; detects Nat20 CRIT (doubles dice only, not modifier) + Nat1 FUMBLE
+  - Multi-attack: separate rolls per attack tagged [n/total]
+- Conditions: 9 presets (Poisoned, Stunned, Restrained, Charmed, Frightened, Prone, Blinded, Paralyzed, Unconscious) + custom condition input
+- Concentration toggle per combatant
+- Duplicate combatant with auto-incrementing name ("Goblin" → "Goblin 2" → "Goblin 3")
+- Save/Load encounters (up to 25 snapshots in localStorage)
+- Settings: Auto-roll Init on add, Auto-remove Dead, Allow Overheal, Track Concentration
+- Persistence: per-campaign localStorage key `combat_state_<campaignId>` via lazy `useReducer` initializer (survives page reload)
+- Combat log captures: initiative, turns, rounds, attacks, damage, HP changes, deaths
+- Tested: 22/22 scenarios pass (testing_agent_v3 iteration_2 + persistence retest)
+
+
 ## Backlog
 - P1: fal.ai or alternate AI upscaler when user is ready to pay or wants user-supplied keys
 - P2: Mask-based inpainting (paint a precise mask then describe what fills it)
