@@ -314,6 +314,8 @@ function Label({ children }) {
 function toolHelp(t) {
   const help = {
     pan: "Drag to pan. Scroll to zoom.",
+    select:
+      "Drag a rectangle around tokens/assets/grids to select them. Delete = remove all, Ctrl+D = duplicate all, Esc = clear selection.",
     brush: "Click and drag on the map to draw freehand strokes.",
     rect: "Click and drag to draw a rectangle.",
     circle: "Click and drag to draw a circle.",

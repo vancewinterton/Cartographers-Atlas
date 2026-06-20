@@ -14,10 +14,12 @@ import {
   Grid3x3,
   ImagePlus,
   Swords,
+  BoxSelect,
 } from "lucide-react";
 
 const TOOLS = [
   { id: "pan", icon: Hand, label: "Pan" },
+  { id: "select", icon: BoxSelect, label: "Multi-select" },
   { id: "brush", icon: Paintbrush, label: "Brush" },
   { id: "rect", icon: Square, label: "Rectangle" },
   { id: "circle", icon: CircleIcon, label: "Circle" },

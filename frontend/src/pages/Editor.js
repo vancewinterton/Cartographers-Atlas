@@ -51,6 +51,7 @@ export default function Editor() {
   const [pinColorFilter, setPinColorFilter] = useState(new Set());
   const [pendingDeletePin, setPendingDeletePin] = useState(null);
   const [editingShape, setEditingShape] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [showTokenLabels, setShowTokenLabels] = useState(true);
   const [showHealthBars, setShowHealthBars] = useState(true);
@@ -177,8 +178,6 @@ export default function Editor() {
   useEffect(() => {
     const onKey = (e) => {
       const mod = e.ctrlKey || e.metaKey;
-      if (!mod) return;
-      const k = e.key.toLowerCase();
       const target = e.target;
       const isEditable =
         target &&
@@ -186,6 +185,46 @@ export default function Editor() {
           target.tagName === "TEXTAREA" ||
           target.isContentEditable);
       if (isEditable) return;
+
+      // Bulk delete / duplicate selection
+      if (selectedIds && selectedIds.size > 0) {
+        if (e.key === "Delete" || e.key === "Backspace") {
+          e.preventDefault();
+          pushHistory();
+          setShapes((arr) => arr.filter((s) => !selectedIds.has(s.id)));
+          setSelectedIds(new Set());
+          return;
+        }
+        if (mod && e.key.toLowerCase() === "d") {
+          e.preventDefault();
+          pushHistory();
+          const newIds = new Set();
+          setShapes((arr) => {
+            const additions = arr
+              .filter((s) => selectedIds.has(s.id))
+              .map((s) => {
+                const id = cryptoRandom();
+                newIds.add(id);
+                return {
+                  ...s,
+                  id,
+                  x: (s.x || 0) + 30,
+                  y: (s.y || 0) + 30,
+                  trail: undefined,
+                };
+              });
+            return [...arr, ...additions];
+          });
+          setTimeout(() => setSelectedIds(newIds), 0);
+          return;
+        }
+        if (e.key === "Escape") {
+          setSelectedIds(new Set());
+        }
+      }
+
+      if (!mod) return;
+      const k = e.key.toLowerCase();
       if (k === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
@@ -293,6 +332,8 @@ export default function Editor() {
         showTokenLabels={showTokenLabels}
         showHealthBars={showHealthBars}
         showGhostTrails={showGhostTrails}
+        selectedIds={selectedIds}
+        setSelectedIds={setSelectedIds}
       />
 
       <TopBar

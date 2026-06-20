@@ -9,7 +9,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Button } from "../ui/button";
 import { Slider } from "../ui/slider";
-import { Trash2, Swords, ImageIcon, Grid3x3, Copy } from "lucide-react";
+import { Trash2, Swords, ImageIcon, Grid3x3, Copy, Eye, EyeOff } from "lucide-react";
 
 const COLORS = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#A855F7", "#F3F2F0", "#0B0A09"];
 
@@ -263,6 +263,31 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicat
           )}
 
           <div className="pt-6 space-y-2">
+            <button
+              data-testid="shape-hidden-toggle"
+              onClick={() => patch({ hidden: !local.hidden })}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition ${
+                local.hidden
+                  ? "bg-amber-600/10 border-amber-700/40 text-amber-500"
+                  : "bg-black/30 border-white/10 text-stone-200 hover:bg-white/5"
+              }`}
+            >
+              {local.hidden ? (
+                <EyeOff className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
+              )}
+              <div className="flex-1 text-left">
+                <div className="text-sm font-medium">
+                  {local.hidden ? "Hidden from players" : "Visible to players"}
+                </div>
+                <div className="text-[10px] font-mono-cart uppercase tracking-wider opacity-70 mt-0.5">
+                  {local.hidden
+                    ? "Faded for you, invisible on share link"
+                    : "Everyone with the link sees this"}
+                </div>
+              </div>
+            </button>
             {onDuplicate && (
               <Button
                 data-testid="shape-duplicate-btn"

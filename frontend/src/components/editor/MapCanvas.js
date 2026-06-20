@@ -63,6 +63,8 @@ export default function MapCanvas({
   showTokenLabels = true,
   showHealthBars = true,
   showGhostTrails = true,
+  selectedIds,
+  setSelectedIds,
 }) {
   const W = mapDoc.image_width || 1600;
   const H = mapDoc.image_height || 1000;
@@ -229,11 +231,12 @@ export default function MapCanvas({
       return;
     }
 
-    if (tool === "rect" || tool === "circle" || tool === "ai-redraw" || tool === "grid") {
-      onPushHistory();
+    if (tool === "rect" || tool === "circle" || tool === "ai-redraw" || tool === "grid" || tool === "select") {
+      if (tool !== "select") onPushHistory();
       let drawType;
       if (tool === "ai-redraw") drawType = "ai-region";
       else if (tool === "grid") drawType = "grid";
+      else if (tool === "select") drawType = "select-marquee";
       else drawType = tool;
       setDrawing({
         type: drawType,
@@ -274,6 +277,27 @@ export default function MapCanvas({
       setDrawing(null);
       return;
     }
+    if (drawing.type === "select-marquee") {
+      const x = Math.min(drawing.x, drawing.x + drawing.w);
+      const y = Math.min(drawing.y, drawing.y + drawing.h);
+      const w = Math.abs(drawing.w);
+      const h = Math.abs(drawing.h);
+      const visibleLayerIds = new Set(layers.filter((l) => l.visible).map((l) => l.id));
+      const hits = shapes
+        .filter((s) => visibleLayerIds.has(s.layerId) && HTML_SHAPE_TYPES.has(s.type))
+        .filter((s) => {
+          const cx = s.x + (s.w || s.size || 0) / 2;
+          const cy = s.y + (s.h || s.size || 0) / 2;
+          if (s.type === "token") {
+            return s.x >= x && s.x <= x + w && s.y >= y && s.y <= y + h;
+          }
+          return cx >= x && cx <= x + w && cy >= y && cy <= y + h;
+        })
+        .map((s) => s.id);
+      setSelectedIds?.(new Set(hits));
+      setDrawing(null);
+      return;
+    }
     if (drawing.type === "soft-erase" || drawing.type === "erase-drag") {
       setDrawing(null);
       softErasePushedRef.current = false;
@@ -311,31 +335,46 @@ export default function MapCanvas({
     setDrawing(null);
   };
 
-  // Soft erase: HARD eraser — deletes any brush stroke/shape/pin that intersects the circle.
+  // Soft erase: filters BRUSH stroke points within the circle (partial erase), and deletes
+  // non-brush shapes (rect/circle/polygon/text/image/AI regions) + pins intersecting the circle
+  // since those can't be partially erased.
   const applySoftErase = (p) => {
     const r = Math.max(6, brushSize * 3);
+    const r2 = r * r;
     const visibleLayerIds = new Set(layers.filter((l) => l.visible && !l.locked).map((l) => l.id));
     let changed = false;
-    const next = shapes.filter((s) => {
-      if (!visibleLayerIds.has(s.layerId)) return true;
-      if (s.type === "brush") {
-        // Delete whole stroke if any point is within radius
-        for (let i = 0; i < s.points.length; i += 2) {
-          const dx = s.points[i] - p.x;
-          const dy = s.points[i + 1] - p.y;
-          if (dx * dx + dy * dy <= r * r) {
-            changed = true;
-            return false;
+    const next = shapes
+      .map((s) => {
+        if (!visibleLayerIds.has(s.layerId)) return s;
+        if (s.type === "brush") {
+          const newPoints = [];
+          for (let i = 0; i < s.points.length; i += 2) {
+            const dx = s.points[i] - p.x;
+            const dy = s.points[i + 1] - p.y;
+            if (dx * dx + dy * dy > r2) {
+              newPoints.push(s.points[i], s.points[i + 1]);
+            } else {
+              changed = true;
+            }
           }
+          if (newPoints.length === s.points.length) return s;
+          return { ...s, points: newPoints };
         }
-        return true;
-      }
-      if (circleIntersectsShape(s, p, r)) {
-        changed = true;
-        return false;
-      }
-      return true;
-    });
+        if (
+          (s.type === "rect" ||
+            s.type === "circle" ||
+            s.type === "polygon" ||
+            s.type === "text" ||
+            s.type === "image" ||
+            s.type === "ai-region") &&
+          circleIntersectsShape(s, p, r)
+        ) {
+          changed = true;
+          return null;
+        }
+        return s;
+      })
+      .filter((s) => s && (s.type !== "brush" || s.points.length >= 4));
     if (changed) setShapes(next);
 
     const remainingPins = pins.filter((pn) => Math.hypot(pn.x - p.x, pn.y - p.y) > r);
@@ -487,10 +526,22 @@ export default function MapCanvas({
                       </g>
                     );
                   })}
-                {drawing && drawing.type !== "soft-erase" && drawing.type !== "grid" && (
+                {drawing && drawing.type !== "soft-erase" && drawing.type !== "grid" && drawing.type !== "select-marquee" && (
                   <ShapeEl s={drawing} preview />
                 )}
                 {drawing && drawing.type === "grid" && <GridPreview s={drawing} />}
+                {drawing && drawing.type === "select-marquee" && (
+                  <rect
+                    x={Math.min(drawing.x, drawing.x + drawing.w)}
+                    y={Math.min(drawing.y, drawing.y + drawing.h)}
+                    width={Math.abs(drawing.w)}
+                    height={Math.abs(drawing.h)}
+                    fill="rgba(217,119,6,0.08)"
+                    stroke="#D97706"
+                    strokeWidth={2}
+                    strokeDasharray="8 6"
+                  />
+                )}
                 {polygonPts && (
                   <polyline
                     points={pairs(polygonPts).join(" ")}
@@ -507,6 +558,7 @@ export default function MapCanvas({
               {/* HTML shape layer — assets, tokens, grids (draggable) */}
               {shapes
                 .filter((s) => visibleLayerIds.has(s.layerId) && HTML_SHAPE_TYPES.has(s.type))
+                .filter((s) => !(readOnly && s.hidden))
                 .map((s) => (
                   <MoveableShape
                     key={s.id}
@@ -517,6 +569,7 @@ export default function MapCanvas({
                     readOnly={readOnly}
                     showTokenLabels={showTokenLabels}
                     showHealthBars={showHealthBars}
+                    isSelected={selectedIds?.has(s.id)}
                     onDragEnd={(nx, ny) => {
                       onPushHistory();
                       setShapes(
@@ -743,7 +796,7 @@ function GridPreview({ s }) {
 }
 
 // Draggable HTML element rendering for assets, tokens, and grids
-function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, showHealthBars = true, onDragEnd, onClick }) {
+function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, showHealthBars = true, isSelected = false, onDragEnd, onClick }) {
   const ref = useRef(null);
   const dragRef = useRef(null);
 
@@ -796,6 +849,7 @@ function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, sh
     width: shape.w || shape.size,
     height: shape.h || shape.size,
     cursor: tool === "erase" ? "not-allowed" : "grab",
+    opacity: shape.hidden ? 0.32 : 1,
   };
 
   if (shape.type === "token") {
@@ -809,13 +863,14 @@ function MoveableShape({ shape, W, H, tool, readOnly, showTokenLabels = true, sh
       <div
         ref={ref}
         data-testid={`token-${shape.id}`}
-        className="editable-overlay absolute z-[5] select-none group"
+        className={`editable-overlay absolute z-[5] select-none group ${isSelected ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-transparent rounded-full" : ""}`}
         style={{
           left: shape.x - sz / 2,
           top: shape.y - sz / 2,
           width: sz,
           height: sz,
           cursor: readOnly ? "default" : tool === "erase" ? "not-allowed" : "grab",
+          opacity: shape.hidden ? 0.32 : 1,
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -1055,6 +1110,7 @@ function cursorFor(tool) {
   if (tool === "soft-erase") return "cell";
   if (tool === "erase") return "not-allowed";
   if (tool === "text") return "text";
+  if (tool === "select") return "crosshair";
   return "crosshair";
 }
 
