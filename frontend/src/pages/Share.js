@@ -3,8 +3,9 @@ import { useParams } from "react-router-dom";
 import { Share as ShareAPI, Maps } from "../lib/api";
 import MapCanvas from "../components/editor/MapCanvas";
 import PaintPanel from "../components/editor/PaintPanel";
+import TokenLibraryPanel from "../components/editor/TokenLibraryPanel";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet";
-import { Compass, MapPinned, ArrowUpRight, ExternalLink, Wifi, Hand, Paintbrush } from "lucide-react";
+import { Compass, MapPinned, ArrowUpRight, ExternalLink, Wifi, Hand, Paintbrush, Library } from "lucide-react";
 import { Button } from "../components/ui/button";
 import useMapPolling from "../lib/useMapPolling";
 
@@ -29,6 +30,7 @@ export default function SharePage() {
   const [brushOpacity, setBrushOpacity] = useState(1);
   const [brushVariant, setBrushVariant] = useState("brush");
   const [paintOpen, setPaintOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   useEffect(() => {
     ShareAPI.get(token)
@@ -72,7 +74,7 @@ export default function SharePage() {
     mapId: currentMapId,
     localUpdatedAt: currentMap?.updated_at,
     onUpdate: applyFreshMap,
-    intervalMs: 2000,
+    intervalMs: 1200,
     paused: false,
   });
 
@@ -107,7 +109,40 @@ export default function SharePage() {
       } catch {
         setSynced(false);
       }
-    }, 400);
+    }, 250);
+  };
+
+  // Add a saved library token onto the shared map (persists + syncs to the DM)
+  const addLibraryToken = (tpl) => {
+    if (!currentMap) return;
+    const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const firstLayer =
+      (currentMap.layers && currentMap.layers.length && currentMap.layers[0].id) || "L1";
+    const next = [
+      ...allShapes,
+      {
+        id,
+        type: "token",
+        layerId: firstLayer,
+        color: tpl.color || "#3B82F6",
+        size: tpl.size || 40,
+        x: Math.round((currentMap.image_width || 1600) / 2),
+        y: Math.round((currentMap.image_height || 1000) / 2),
+        label: tpl.label || "",
+        description: tpl.description || "",
+        hp: tpl.hp ?? null,
+        hpMax: tpl.hpMax ?? null,
+        ac: tpl.ac ?? null,
+        initBonus: tpl.initBonus ?? 0,
+        attacks: Array.isArray(tpl.attacks) ? tpl.attacks : [],
+      },
+    ];
+    draggingRef.current = true;
+    setLocalShapes(next);
+    persistShapes(next);
+    setTimeout(() => {
+      draggingRef.current = false;
+    }, 1200);
   };
 
   if (error) {
@@ -206,7 +241,26 @@ export default function SharePage() {
         >
           <Paintbrush className="w-4 h-4" />
         </button>
+        <button
+          data-testid="viewer-tool-library"
+          onClick={() => setLibraryOpen((v) => !v)}
+          title="My token library"
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+            libraryOpen
+              ? "bg-white/10 text-amber-500 ring-1 ring-amber-600/30"
+              : "text-stone-400 hover:bg-white/5 hover:text-stone-100"
+          }`}
+        >
+          <Library className="w-4 h-4" />
+        </button>
       </div>
+
+      {libraryOpen && (
+        <TokenLibraryPanel
+          onClose={() => setLibraryOpen(false)}
+          onAddToken={(tpl) => addLibraryToken(tpl)}
+        />
+      )}
 
       {paintOpen && (
         <PaintPanel

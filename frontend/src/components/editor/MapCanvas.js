@@ -41,7 +41,7 @@ import { useEffect, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { getPinIcon } from "./pinIcons";
 
-const HTML_SHAPE_TYPES = new Set(["asset", "token", "grid"]);
+const HTML_SHAPE_TYPES = new Set(["asset", "token", "grid", "text"]);
 
 export default function MapCanvas({
   mapDoc,
@@ -68,6 +68,7 @@ export default function MapCanvas({
   selectedIds,
   setSelectedIds,
   viewerCanDragTokens = false,
+  onSetBlank,
 }) {
   const W = mapDoc.image_width || 1600;
   const H = mapDoc.image_height || 1000;
@@ -198,7 +199,21 @@ export default function MapCanvas({
     }
 
     if (tool === "text") {
-      setTextInput({ x: p.x, y: p.y });
+      onPushHistory();
+      const newText = {
+        id: rid(),
+        type: "text",
+        layerId: activeLayerId,
+        color,
+        size: Math.max(brushSize * 4, 24),
+        x: p.x,
+        y: p.y,
+        text: "Text",
+      };
+      setShapes([...shapes, newText]);
+      // Open the edit panel right away so the label content, color and size
+      // can be set (the old inline input lost focus inside the zoom transform).
+      onShapeClick?.(newText);
       return;
     }
 
@@ -426,6 +441,16 @@ export default function MapCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [polygonPts]);
 
+  // Switching tools always abandons any in-progress shape so a new tool (or the
+  // same tool re-picked) starts a fresh shape instead of extending the last one.
+  useEffect(() => {
+    setPolygonPts(null);
+    setTextInput(null);
+    setDrawing(null);
+    setEraserHover(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool]);
+
   const submitText = (val) => {
     if (val && val.trim()) {
       onPushHistory();
@@ -484,8 +509,19 @@ export default function MapCanvas({
                   style={{ imageRendering: "auto" }}
                 />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-stone-500 font-display text-3xl pointer-events-none">
-                  Import a map image to begin
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 pointer-events-none">
+                  <div className="text-stone-500 font-display text-3xl">
+                    Import a map image to begin
+                  </div>
+                  {!readOnly && onSetBlank && (
+                    <button
+                      data-testid="blank-canvas-btn"
+                      onClick={onSetBlank}
+                      className="pointer-events-auto px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-medium shadow-lg transition"
+                    >
+                      Or start with a blank white canvas
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -496,9 +532,14 @@ export default function MapCanvas({
                 preserveAspectRatio="none"
               >
                 {shapes
-                  .filter((s) => visibleLayerIds.has(s.layerId) && !HTML_SHAPE_TYPES.has(s.type))
+                  .filter(
+                    (s) =>
+                      visibleLayerIds.has(s.layerId) &&
+                      !HTML_SHAPE_TYPES.has(s.type) &&
+                      !(s.type === "brush" && s.variant === "fog"),
+                  )
                   .map((s) => (
-                    <ShapeEl key={s.id} s={s} />
+                    <ShapeEl key={s.id} s={s} viewer={readOnly} />
                   ))}
                 {/* Ghost trails for tokens (drawn in SVG so they sit behind tokens) */}
                 {showGhostTrails && shapes
@@ -613,6 +654,27 @@ export default function MapCanvas({
                     }}
                   />
                 ))}
+
+              {/* Fog of war overlay — rendered ABOVE tokens. Semi-transparent for the
+                  DM (sees through) but near-opaque on the share view so players can't
+                  see what's hidden underneath. */}
+              <svg
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                style={{ zIndex: 6 }}
+                viewBox={`0 0 ${W} ${H}`}
+                preserveAspectRatio="none"
+              >
+                {shapes
+                  .filter(
+                    (s) =>
+                      visibleLayerIds.has(s.layerId) &&
+                      s.type === "brush" &&
+                      s.variant === "fog",
+                  )
+                  .map((s) => (
+                    <ShapeEl key={`fog-${s.id}`} s={s} viewer={readOnly} />
+                  ))}
+              </svg>
 
               {/* Soft-erase cursor preview (both hover and drag) */}
               {tool === "soft-erase" && (eraserHover || (drawing && drawing.type === "soft-erase")) && (
@@ -947,6 +1009,36 @@ function MoveableShape({ shape, W, H, tool, readOnly, viewerCanDragTokens = fals
     );
   }
 
+  if (shape.type === "text") {
+    const fs = shape.size || 18;
+    return (
+      <div
+        ref={ref}
+        data-testid={`text-${shape.id}`}
+        className={`editable-overlay absolute z-[5] select-none whitespace-nowrap ${
+          isSelected ? "ring-2 ring-amber-400 rounded px-0.5" : ""
+        }`}
+        style={{
+          left: shape.x,
+          top: shape.y,
+          fontSize: fs,
+          lineHeight: 1.1,
+          color: shape.color || "#D97706",
+          fontFamily: "Cormorant Garamond, serif",
+          fontWeight: 600,
+          textShadow: "0 0 6px rgba(0,0,0,0.7)",
+          cursor: !interactive ? "default" : tool === "erase" ? "not-allowed" : "grab",
+          opacity: shape.hidden ? 0.32 : 1,
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
+        {shape.text}
+      </div>
+    );
+  }
+
   if (shape.type === "asset") {
     const crop = shape.cropRect || { x: 0, y: 0, w: 1, h: 1 };
     const w = shape.w;
@@ -998,7 +1090,7 @@ function MoveableShape({ shape, W, H, tool, readOnly, viewerCanDragTokens = fals
   return null;
 }
 
-function ShapeEl({ s, preview }) {
+function ShapeEl({ s, preview, viewer }) {
   const stroke = s.color || "#D97706";
   const sw = s.size || 4;
   const fill = "none";
@@ -1006,6 +1098,19 @@ function ShapeEl({ s, preview }) {
   if (s.type === "brush") {
     const variant = s.variant || "brush";
     const baseOpacity = s.opacity != null ? s.opacity : 1;
+    if (variant === "fog") {
+      return (
+        <polyline
+          points={pairs(s.points).join(" ")}
+          fill="none"
+          stroke={s.color || "#0f172a"}
+          strokeWidth={sw}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeOpacity={viewer ? 0.92 : 0.3}
+        />
+      );
+    }
     if (variant === "spray") {
       const dots = sprayDots(s.points, sw);
       return (

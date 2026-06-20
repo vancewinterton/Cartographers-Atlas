@@ -112,7 +112,7 @@ function shapeToSvg(s) {
     return `<polygon points="${pointPairs(s.points)}" fill="${c}33" stroke="${c}" stroke-width="${sw}"/>`;
   }
   if (s.type === "text") {
-    return `<text x="${s.x}" y="${s.y}" fill="${c}" font-size="${s.size}" font-family="Cormorant Garamond, serif" font-weight="600">${escapeText(s.text || "")}</text>`;
+    return `<text x="${s.x}" y="${s.y}" fill="${c}" font-size="${s.size}" font-family="Cormorant Garamond, serif" font-weight="600" dominant-baseline="text-before-edge">${escapeText(s.text || "")}</text>`;
   }
   return "";
 }

@@ -1,0 +1,38 @@
+{
+  "summary": "Frontend-only verification of the 6 new iteration features on the public preview URL using Playwright. VERIFIED WORKING: (1) Token Library (DM): library-btn opens token-library-panel, library-new-token + library-draft-name/desc/color/save creates a library-token-<id> entry, library-add-<id> drops a fresh token onto the active map (token count went 22→23), library-delete-<id> removes the entry. (2) Token description + Save to Library: clicking an existing map token opens shape-edit-sheet exposing shape-token-description (textarea) and shape-save-library-btn. (3) Blank white canvas: created a NEW campaign (TEST_BlankCanvas_QA2) via the dashboard 'New Campaign' → 'Forge it' flow; opening its empty World Map shows blank-canvas-btn, clicking it fills the canvas white (toast 'Blank canvas ready' and the empty-state CTA disappears). (4) Fog of War: PaintPanel exposes paint-variant-fog and NO paint-variant-pencil; drawing a fog stroke renders #0f172a polyline at stroke-opacity 0.3 in the DM editor and at 0.92 on /share (DM-vs-viewer opacity differential confirmed via attribute inspection). (5) Text tool: tool-text + click on empty canvas instantly creates a text-<id> shape and opens shape-edit-sheet with shape-text-content; typing updates the on-map label live. (6) Viewer library: /share dock exposes viewer-tool-pan, viewer-tool-paint, AND viewer-tool-library; viewer can create+add a library token (TEST_Viewer_Lib) which persists and renders on the shared map and share-sync-status shows 'Live'. POLYGON fresh-start test was INCONCLUSIVE — the testid 'polygon-preview-point' did not match anything (0 in all 3 measurements) so I could not assert fresh-start via DOM count; needs different selector or visual check (code path useEffect on [tool] resetting polygonPts is in place per MapCanvas).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Editor shape edit sheet", "issues": ["Console warning: 'Missing Description or aria-describedby for DialogContent' — a11y warning on the shape edit Sheet/Dialog. Carry-over level, not blocking."]},
+      {"screen": "Editor", "issues": ["Pre-existing React hydration warning '<option> cannot be a child of <span>' from CombatantCard target-select (carried over from earlier iterations)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_5.json",
+    "/app/test_reports/iteration_4.json"
+  ],
+  "action_items": [
+    "Polygon fresh-start: manually verify (or expose a stable data-testid like polygon-preview-point on the in-progress vertex circles in MapCanvas) so automation can assert that after a tool switch+back, the previous in-progress polygon's points are NOT carried over. Code path looks correct (useEffect on [tool] resets polygonPts/textInput/drawing), but I could not assert this via DOM count — no testid was found on the preview dots.",
+    "Optional: add aria-describedby (or pass description) to the Token edit Sheet/DialogContent to silence the Radix a11y console warning."
+  ],
+  "critical_code_review_comments": [
+    "GOOD: Editor.js addLibraryToken centers the token at (image_width/2, image_height/2) and carries forward stats (hp/hpMax/ac/initBonus/attacks/description) — clean.",
+    "GOOD: Editor.js setBlankCanvas() draws a white PNG via canvas.toDataURL and PUTs image_data to Maps.update with image_width/height — correct empty-state UX.",
+    "GOOD: PaintPanel VARIANTS includes a 'fog' entry with color '#0f172a', sizeMult 6 and accent 'slate'; pencil is fully removed from the array. applyVariant now also setColor(v.color) when defined so picking fog auto-switches to the dark color.",
+    "GOOD: Share.js fog rendering: /share view shows fog polyline at stroke-opacity 0.92 (attribute confirmed) while DM editor renders the same shape at ~0.3 — DM-vs-viewer differential is real and matches spec.",
+    "GOOD: Share.js TokenLibraryPanel reuses the same component as the DM editor; addLibraryToken persists via persistShapes (250ms debounce) and the share-sync-status toggles to 'Live' once saved.",
+    "GOOD: Editor autosave debounce dropped to 600ms and useMapPolling intervalMs=1200; applyRemoteMap keeps a 1200ms local-edit grace to prevent echo loops — sync feels noticeably snappier than the previous 2.5s polling.",
+    "OBSERVATION: In MapCanvas the in-progress polygon vertex preview circles do not appear to carry a stable data-testid (e.g. polygon-preview-point); adding one would make the fresh-start behavior trivially testable.",
+    "MINOR/CARRY-OVER: Radix Dialog a11y warning ('Missing Description or aria-describedby={undefined} for {DialogContent}') still present on shape-edit-sheet — purely a console warning."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped per request", "frontend": "~95% (Library DM+viewer, token description, save-to-library, blank canvas, fog opacity differential, text tool, viewer dock fully verified; polygon fresh-start could not be asserted via DOM but code looks correct)"},
+  "test_credentials": "n/a — no auth",
+  "seed_data_creation": "Created new campaign 'TEST_BlankCanvas_QA2' (id e222aa77-7f7d-4f15-97b7-df8d7b8fd86d) on the dashboard to verify the empty-state blank-canvas flow. Also added/removed a 'TEST_Lib_Hero' and 'TEST_Viewer_Lib' entry in the per-browser token library (localStorage). One green token from the library was added to the main test campaign 189e3915-… and the share view added one 'TEST_Viewer_Lib' token to the same map (visible in screenshot). Also drew a small dark fog stroke and set a token's description to 'TEST_DESCRIPTION_QA'. All TEST_ artefacts can be safely removed via UI.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test campaign id 189e3915-f26e-48f1-b75a-860e8f973d79; share token cc647d6c1bd34555ba9265d30b0cc10c; freshly created blank-canvas campaign e222aa77-7f7d-4f15-97b7-df8d7b8fd86d. New testids verified this iteration: library-btn, token-library-panel, token-library-close, library-new-token, library-draft-name, library-draft-desc, library-draft-color-<hex>, library-draft-save, library-token-<id>, library-add-<id>, library-delete-<id>, blank-canvas-btn, paint-variant-fog (with NO paint-variant-pencil), shape-token-description, shape-save-library-btn, shape-text-content, text-<id>, viewer-tool-library. Token library is per-browser localStorage (key cartographer_token_library_v1) so DM and viewer share entries within one browser context. To test polygon fresh-start reliably the main agent should add a data-testid to the in-progress vertex preview circles in MapCanvas (e.g. 'polygon-preview-point') — the current useEffect on [tool] reset of polygonPts looks correct in source but is not assertable from DOM without a stable selector.",
+  "rca_of_the_issue": "Polygon fresh-start automation: the test selector '[data-testid=\"polygon-preview-point\"]' returned 0 in all 3 phases (3 clicks, after tool switch, after 1 fresh click). Most likely cause: that testid is not actually emitted by MapCanvas (the polygon-in-progress dots/lines are SVG without a testid attribute), not a functional bug. Mitigation: add data-testid='polygon-preview-point' to the SVG circles rendered for each in-progress polygon vertex inside MapCanvas, then re-run the same assertion."
+}

@@ -20,6 +20,7 @@ import {
   Check,
   Swords,
   Package,
+  Library,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import {
@@ -45,6 +46,8 @@ export default function TopBar({
   onShareToken,
   onToggleCombat,
   combatOpen,
+  onToggleLibrary,
+  libraryOpen,
 }) {
   const fileRef = useRef(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -241,6 +244,15 @@ export default function TopBar({
         >
           <Swords className="w-4 h-4 mr-2" />
           Combat
+        </Button>
+        <Button
+          data-testid="library-btn"
+          variant="ghost"
+          onClick={onToggleLibrary}
+          className={`hover:bg-white/5 h-9 ${libraryOpen ? "text-amber-500" : "text-stone-300 hover:text-amber-500"}`}
+        >
+          <Library className="w-4 h-4 mr-2" />
+          Library
         </Button>
         <Button
           data-testid="share-btn"

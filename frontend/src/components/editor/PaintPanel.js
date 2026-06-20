@@ -1,7 +1,7 @@
 import {
   Paintbrush,
   Highlighter,
-  Pencil,
+  CloudFog,
   SprayCan,
   Eraser,
   X,
@@ -50,15 +50,16 @@ const VARIANTS = [
     accent: "yellow",
   },
   {
-    id: "pencil",
-    label: "Pencil",
-    desc: "Thin, hard edge",
-    icon: Pencil,
+    id: "fog",
+    label: "Fog",
+    desc: "War fog — players can't see through it",
+    icon: CloudFog,
     tool: "brush",
-    variant: "pencil",
-    opacity: 0.95,
-    sizeMult: 0.5,
-    accent: "stone",
+    variant: "fog",
+    opacity: 1,
+    sizeMult: 6,
+    accent: "slate",
+    color: "#0f172a",
   },
   {
     id: "spray",
@@ -138,6 +139,10 @@ const ACCENT_CLASSES = {
     active: "bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/40",
     idle: "text-stone-400 hover:bg-white/5 hover:text-blue-300",
   },
+  slate: {
+    active: "bg-slate-500/20 text-slate-200 ring-1 ring-slate-400/40",
+    idle: "text-stone-400 hover:bg-white/5 hover:text-slate-200",
+  },
   red: {
     active: "bg-red-500/15 text-red-300 ring-1 ring-red-500/40",
     idle: "text-stone-400 hover:bg-white/5 hover:text-red-300",
@@ -167,6 +172,7 @@ export default function PaintPanel({
   const applyVariant = (v) => {
     setTool(v.tool);
     if (v.variant) setBrushVariant(v.variant);
+    if (v.color) setColor(v.color);
     setBrushOpacity(v.opacity);
     // Scale brush size sensibly relative to a baseline of 8
     const newSize = Math.max(2, Math.round(8 * v.sizeMult));

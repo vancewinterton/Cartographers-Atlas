@@ -9,11 +9,11 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Button } from "../ui/button";
 import { Slider } from "../ui/slider";
-import { Trash2, Swords, ImageIcon, Grid3x3, Copy, Eye, EyeOff } from "lucide-react";
+import { Trash2, Swords, ImageIcon, Grid3x3, Copy, Eye, EyeOff, Type, Library } from "lucide-react";
 
 const COLORS = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#A855F7", "#F3F2F0", "#0B0A09"];
 
-export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicate, onClose, onAddToCombat }) {
+export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicate, onClose, onAddToCombat, onSaveToLibrary }) {
   const [local, setLocal] = useState(shape);
   useEffect(() => setLocal(shape), [shape?.id]);
   if (!shape) return null;
@@ -27,6 +27,7 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicat
   const isToken = shape.type === "token";
   const isAsset = shape.type === "asset";
   const isGrid = shape.type === "grid";
+  const isText = shape.type === "text";
 
   return (
     <Sheet open={true} onOpenChange={(o) => !o && onClose()}>
@@ -40,11 +41,59 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicat
             {isToken && <Swords className="w-5 h-5 text-red-400" />}
             {isAsset && <ImageIcon className="w-5 h-5 text-amber-500" />}
             {isGrid && <Grid3x3 className="w-5 h-5 text-amber-500" />}
-            {isToken ? "Token" : isAsset ? "Asset" : "Grid"}
+            {isText && <Type className="w-5 h-5 text-amber-500" />}
+            {isToken ? "Token" : isAsset ? "Asset" : isGrid ? "Grid" : "Text"}
           </SheetTitle>
         </SheetHeader>
 
         <div className="space-y-5 mt-6">
+          {isText && (
+            <>
+              <Field label="Text">
+                <Input
+                  data-testid="shape-text-content"
+                  value={local.text || ""}
+                  onChange={(e) => patch({ text: e.target.value })}
+                  placeholder="Label text…"
+                  className="bg-black/40 border-white/10"
+                />
+              </Field>
+              <Field label="Color">
+                <div className="flex flex-wrap gap-2">
+                  {COLORS.map((c) => (
+                    <button
+                      key={c}
+                      data-testid={`shape-text-color-${c}`}
+                      onClick={() => patch({ color: c })}
+                      style={{ backgroundColor: c }}
+                      className={`w-7 h-7 rounded-full border transition ${
+                        local.color === c
+                          ? "border-amber-500 ring-2 ring-amber-500/40"
+                          : "border-white/10 hover:border-white/30"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </Field>
+              <Field
+                label={
+                  <span>
+                    Size <span className="text-stone-500 font-mono-cart">{Math.round(local.size || 18)}px</span>
+                  </span>
+                }
+              >
+                <Slider
+                  data-testid="shape-text-size"
+                  min={8}
+                  max={200}
+                  step={1}
+                  value={[local.size || 18]}
+                  onValueChange={(v) => patch({ size: v[0] })}
+                />
+              </Field>
+            </>
+          )}
+
           {isToken && (
             <>
               <Field label="Name">
@@ -54,6 +103,16 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicat
                   onChange={(e) => patch({ label: e.target.value })}
                   placeholder="Goblin Captain"
                   className="bg-black/40 border-white/10"
+                />
+              </Field>
+              <Field label="Description">
+                <textarea
+                  data-testid="shape-token-description"
+                  value={local.description || ""}
+                  onChange={(e) => patch({ description: e.target.value })}
+                  placeholder="Notes, lore, abilities…"
+                  rows={3}
+                  className="w-full rounded-md bg-black/40 border border-white/10 px-3 py-2 text-sm text-stone-100 resize-y focus:outline-none focus:border-amber-500/50"
                 />
               </Field>
               <div className="grid grid-cols-3 gap-3">
@@ -288,6 +347,17 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicat
                 </div>
               </div>
             </button>
+            {isToken && onSaveToLibrary && (
+              <Button
+                data-testid="shape-save-library-btn"
+                variant="ghost"
+                onClick={onSaveToLibrary}
+                className="text-blue-300 hover:bg-blue-500/10 hover:text-blue-200 w-full justify-start"
+              >
+                <Library className="w-4 h-4 mr-2" />
+                Save to Library
+              </Button>
+            )}
             {isToken && onAddToCombat && (
               <Button
                 data-testid="shape-add-combat-btn"
@@ -307,7 +377,7 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicat
                 className="text-amber-500 hover:bg-amber-500/10 w-full justify-start"
               >
                 <Copy className="w-4 h-4 mr-2" />
-                Duplicate {isToken ? "token" : isAsset ? "asset" : "grid"}
+                Duplicate {isToken ? "token" : isAsset ? "asset" : isGrid ? "grid" : "text"}
               </Button>
             )}
             <Button
@@ -317,7 +387,7 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicat
               className="text-red-400 hover:bg-red-500/10 hover:text-red-300 w-full justify-start"
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              Delete {isToken ? "token" : isAsset ? "asset" : "grid"}
+              Delete {isToken ? "token" : isAsset ? "asset" : isGrid ? "grid" : "text"}
             </Button>
           </div>
         </div>

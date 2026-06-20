@@ -10,6 +10,8 @@ import AIRedrawDialog from "../components/editor/AIRedrawDialog";
 import NestedMapSheet from "../components/editor/NestedMapSheet";
 import { exportMapAsPng } from "../lib/exportMap";
 import ShapeEditPopover from "../components/editor/ShapeEditPopover";
+import TokenLibraryPanel from "../components/editor/TokenLibraryPanel";
+import { saveToken } from "../lib/tokenLibrary";
 import CombatTrackerPanel from "../components/combat/CombatTrackerPanel";
 import { CombatProvider, useCombat } from "../components/combat/CombatContext";
 import useMapPolling from "../lib/useMapPolling";
@@ -63,6 +65,8 @@ export default function Editor() {
   const [showHealthBars, setShowHealthBars] = useState(true);
   const [showGhostTrails, setShowGhostTrails] = useState(true);
   const [combatOpen, setCombatOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryPrefill, setLibraryPrefill] = useState(null);
 
   // Wrap setTool so picking any tool auto-reopens the properties panel
   const setToolAndReopen = (t) => {
@@ -92,6 +96,72 @@ export default function Editor() {
     toast.success(
       `Added ${tokens.length} token${tokens.length === 1 ? "" : "s"} to combat tracker`,
     );
+  };
+
+  // Drop a saved library token onto the centre of the current map
+  const addLibraryToken = (tpl) => {
+    pushHistory();
+    const id = cryptoRandom();
+    setShapes((arr) => [
+      ...arr,
+      {
+        id,
+        type: "token",
+        layerId: activeLayerId,
+        color: tpl.color || "#3B82F6",
+        size: tpl.size || 40,
+        x: Math.round((mapDoc.image_width || 1600) / 2),
+        y: Math.round((mapDoc.image_height || 1000) / 2),
+        label: tpl.label || "",
+        description: tpl.description || "",
+        hp: tpl.hp ?? null,
+        hpMax: tpl.hpMax ?? null,
+        ac: tpl.ac ?? null,
+        initBonus: tpl.initBonus ?? 0,
+        attacks: Array.isArray(tpl.attacks) ? tpl.attacks : [],
+      },
+    ]);
+    toast.success(`Added ${tpl.label || "token"} to map`);
+  };
+
+  const saveTokenToLibrary = (s) => {
+    if (!s || s.type !== "token") return;
+    saveToken({
+      label: s.label || "Token",
+      description: s.description || "",
+      color: s.color,
+      size: s.size,
+      hp: s.hp,
+      hpMax: s.hpMax,
+      ac: s.ac,
+      initBonus: s.initBonus,
+      attacks: s.attacks,
+    });
+    toast.success(`Saved "${s.label || "token"}" to your library`);
+  };
+
+  const setBlankCanvas = async () => {
+    if (!mapDoc) return;
+    const W = mapDoc.image_width || 1600;
+    const H = mapDoc.image_height || 1000;
+    const c = document.createElement("canvas");
+    c.width = W;
+    c.height = H;
+    const cx = c.getContext("2d");
+    cx.fillStyle = "#ffffff";
+    cx.fillRect(0, 0, W, H);
+    const dataUrl = c.toDataURL("image/png");
+    try {
+      const updated = await Maps.update(mapDoc.id, {
+        image_data: dataUrl,
+        image_width: W,
+        image_height: H,
+      });
+      setMapDoc(updated);
+      toast.success("Blank canvas ready");
+    } catch {
+      toast.error("Could not create blank canvas");
+    }
   };
 
   // Load
@@ -209,7 +279,7 @@ export default function Editor() {
       } catch {
         /* ignore */
       }
-    }, 1500);
+    }, 600);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shapes, pins, layers]);
@@ -219,7 +289,7 @@ export default function Editor() {
     (fresh) => {
       if (!fresh || !mapDoc || fresh.id !== mapDoc.id) return;
       if (fresh.updated_at && fresh.updated_at === lastSavedTsRef.current) return;
-      if (Date.now() - lastLocalEditRef.current < 3000) return;
+      if (Date.now() - lastLocalEditRef.current < 1200) return;
       skipNextAutosaveRef.current = true;
       setShapes(fresh.layers?.flatMap((l) => l.shapes || []) || []);
       setPins(fresh.pins || []);
@@ -233,7 +303,7 @@ export default function Editor() {
     mapId: mapDoc?.id,
     localUpdatedAt: mapUpdatedAt,
     onUpdate: applyRemoteMap,
-    intervalMs: 2500,
+    intervalMs: 1200,
   });
 
   // Keyboard shortcuts: Ctrl/Cmd+Z = undo, Ctrl/Cmd+Shift+Z = redo
@@ -400,6 +470,7 @@ export default function Editor() {
         showGhostTrails={showGhostTrails}
         selectedIds={selectedIds}
         setSelectedIds={setSelectedIds}
+        onSetBlank={setBlankCanvas}
       />
 
       <TopBar
@@ -413,6 +484,8 @@ export default function Editor() {
         onExport={() => exportMapAsPng(mapDoc, shapes, pins, layers, campaign.name)}
         onToggleCombat={() => setCombatOpen((v) => !v)}
         combatOpen={combatOpen}
+        onToggleLibrary={() => setLibraryOpen((v) => !v)}
+        libraryOpen={libraryOpen}
       />
 
       <ToolDock
@@ -487,6 +560,17 @@ export default function Editor() {
           <ChevronLeftIcon className="w-4 h-4" />
           <span className="font-mono-cart text-[10px] uppercase tracking-widest">Panel</span>
         </button>
+      )}
+
+      {libraryOpen && (
+        <TokenLibraryPanel
+          prefill={libraryPrefill}
+          onClose={() => {
+            setLibraryOpen(false);
+            setLibraryPrefill(null);
+          }}
+          onAddToken={(tpl) => addLibraryToken(tpl)}
+        />
       )}
 
       {combatOpen && (
@@ -699,6 +783,7 @@ export default function Editor() {
           shape={editingShape}
           onClose={() => setEditingShape(null)}
           onAddToCombat={() => addTokensToCombat([editingShape])}
+          onSaveToLibrary={() => saveTokenToLibrary(editingShape)}
           onUpdate={(patch) => {
             setShapes((arr) =>
               arr.map((s) => (s.id === editingShape.id ? { ...s, ...patch } : s)),
