@@ -622,6 +622,19 @@ export default function Editor() {
             {selectedIds.size} selected
           </span>
           <div className="h-5 w-px bg-white/10" />
+          {selectedIds.size === 1 && (
+            <button
+              data-testid="bulk-edit"
+              onClick={() => {
+                const id = [...selectedIds][0];
+                const s = shapes.find((sh) => sh.id === id);
+                if (s) setEditingShape(s);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-black/30 hover:bg-amber-500/10 hover:text-amber-500 text-stone-200 text-xs font-medium transition"
+            >
+              Edit
+            </button>
+          )}
           <button
             data-testid="bulk-hide"
             onClick={() => {

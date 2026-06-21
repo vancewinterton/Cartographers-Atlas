@@ -342,10 +342,10 @@ export default function MapCanvas({
       const w = Math.abs(drawing.w);
       const h = Math.abs(drawing.h);
       if (w > 20 && h > 20) {
-        setShapes([
-          ...shapes,
-          { ...drawing, id: rid(), x, y, w, h },
-        ]);
+        const gridShape = { ...drawing, id: rid(), x, y, w, h, gridOpacity: 0.5, locked: false };
+        setShapes([...shapes, gridShape]);
+        // Open the editor right away so the lock & opacity controls are discoverable
+        onShapeClick?.(gridShape);
       }
       setDrawing(null);
       return;
@@ -736,6 +736,7 @@ export default function MapCanvas({
 
               {/* Pins layer (rendered AFTER overlay so it sits on top and receives clicks first) */}
               {pins
+                .filter((p) => !(readOnly && p.hidden))
                 .filter((p) => !pinColorFilter || !pinColorFilter.has(p.color || "#D97706"))
                 .map((p) => {
                 const Icon = getPinIcon(p.icon);
@@ -1093,6 +1094,11 @@ function MoveableShape({ shape, W, H, tool, readOnly, viewerCanDragTokens = fals
 
   if (shape.type === "grid") {
     const cell = shape.cellSize || 40;
+    const gop = shape.gridOpacity != null ? shape.gridOpacity : 0.5;
+    const lineHex = Math.round(Math.min(1, gop) * 255).toString(16).padStart(2, "0");
+    const borderHex = Math.round(Math.min(1, gop * 0.7) * 255).toString(16).padStart(2, "0");
+    const col = shape.color || "#D97706";
+    const locked = !!shape.locked;
     return (
       <div
         ref={ref}
@@ -1100,9 +1106,11 @@ function MoveableShape({ shape, W, H, tool, readOnly, viewerCanDragTokens = fals
         className="editable-overlay absolute z-[3] select-none"
         style={{
           ...baseStyle,
-          backgroundImage: `linear-gradient(${shape.color || "#D97706"}88 1px, transparent 1px), linear-gradient(90deg, ${shape.color || "#D97706"}88 1px, transparent 1px)`,
+          cursor: locked ? "default" : baseStyle.cursor,
+          pointerEvents: locked ? "none" : "auto",
+          backgroundImage: `linear-gradient(${col}${lineHex} 1px, transparent 1px), linear-gradient(90deg, ${col}${lineHex} 1px, transparent 1px)`,
           backgroundSize: `${cell}px ${cell}px`,
-          border: `1px solid ${shape.color || "#D97706"}66`,
+          border: `1px solid ${col}${borderHex}`,
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -1405,6 +1413,7 @@ function PinButton({ pin, Icon, scale, W, H, tool, onClick, onDragEnd }) {
       style={{
         left: pin.x,
         top: pin.y,
+        opacity: pin.hidden ? 0.4 : 1,
         transform: `translate(-50%, -100%) scale(${1 / Math.max(scale, 0.3)})`,
         transformOrigin: "50% 100%",
       }}

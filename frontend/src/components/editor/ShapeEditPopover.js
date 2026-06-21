@@ -9,7 +9,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Button } from "../ui/button";
 import { Slider } from "../ui/slider";
-import { Trash2, Swords, ImageIcon, Grid3x3, Copy, Eye, EyeOff, Type, Library } from "lucide-react";
+import { Trash2, Swords, ImageIcon, Grid3x3, Copy, Eye, EyeOff, Type, Library, Lock, Unlock } from "lucide-react";
 
 const COLORS = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#A855F7", "#F3F2F0", "#0B0A09"];
 
@@ -318,6 +318,46 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicat
                   ))}
                 </div>
               </Field>
+              <Field
+                label={
+                  <span>
+                    Opacity{" "}
+                    <span className="text-stone-500 font-mono-cart">
+                      {Math.round((local.gridOpacity != null ? local.gridOpacity : 0.5) * 100)}%
+                    </span>
+                  </span>
+                }
+              >
+                <Slider
+                  data-testid="shape-grid-opacity"
+                  min={5}
+                  max={100}
+                  step={1}
+                  value={[Math.round((local.gridOpacity != null ? local.gridOpacity : 0.5) * 100)]}
+                  onValueChange={(v) => patch({ gridOpacity: v[0] / 100 })}
+                />
+              </Field>
+              <button
+                data-testid="shape-grid-lock-toggle"
+                onClick={() => patch({ locked: !local.locked })}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition ${
+                  local.locked
+                    ? "bg-emerald-600/10 border-emerald-700/40 text-emerald-400"
+                    : "bg-black/30 border-white/10 text-stone-200 hover:bg-white/5"
+                }`}
+              >
+                {local.locked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                <div className="flex-1 text-left">
+                  <div className="text-sm font-medium">
+                    {local.locked ? "Grid locked" : "Grid unlocked"}
+                  </div>
+                  <div className="text-[10px] font-mono-cart uppercase tracking-wider opacity-70 mt-0.5">
+                    {local.locked
+                      ? "Draw & drop tokens over it. Use Select tool to pick it again."
+                      : "Lock it to draw and place tokens on top of the tiles"}
+                  </div>
+                </div>
+              </button>
             </>
           )}
 

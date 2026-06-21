@@ -182,6 +182,9 @@ export default function Dashboard() {
                 </Button>
               </DialogTrigger>
             </div>
+            <div className="hidden lg:block w-full max-w-sm mt-3 ml-auto">
+              <AdSlot orientation="horizontal" testId="dashboard-ad-top" className="h-[56px]" />
+            </div>
             <DialogContent className="bg-[#1E1B18] border-white/10">
               <DialogHeader>
                 <DialogTitle className="font-display text-3xl">

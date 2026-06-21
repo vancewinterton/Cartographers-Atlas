@@ -497,79 +497,79 @@ async def seed_presets():
         existing = await db.presets.count_documents({})
         if existing:
             return
+        SKYRIM_MAP = "https://static.prod-images.emergentagent.com/jobs/99a2a3ba-404d-48da-ad3a-722440c9e423/images/d99fbfc8a562320cbd733f17299d4eb4e3e2c58f0ec8f2375a5aabed69eb4579.png"
         root_id = str(uuid.uuid4())
-        dungeon_id = str(uuid.uuid4())
-        dungeon_pin_id = str(uuid.uuid4())
+        barrow_id = str(uuid.uuid4())
+        barrow_pin_id = str(uuid.uuid4())
+        holds = [
+            ("Solitude", 360, 230, "town", "#D97706"),
+            ("Dawnstar", 700, 210, "port", "#3B82F6"),
+            ("Winterhold", 1040, 250, "magic", "#A855F7"),
+            ("Morthal", 470, 360, "camp", "#10B981"),
+            ("Whiterun", 720, 500, "castle", "#D97706"),
+            ("Windhelm", 1080, 430, "castle", "#3B82F6"),
+            ("Markarth", 230, 520, "ruins", "#EF4444"),
+            ("Falkreath", 600, 760, "forest", "#10B981"),
+            ("Riften", 1100, 720, "town", "#D97706"),
+        ]
+        pins = [
+            {"id": str(uuid.uuid4()), "x": x, "y": y, "label": name,
+             "description": f"The hold of {name}.", "color": color, "icon": icon,
+             "linked_map_id": None}
+            for (name, x, y, icon, color) in holds
+        ]
+        pins.append({
+            "id": barrow_pin_id, "x": 520, "y": 430, "label": "Bleak Falls Barrow",
+            "description": "An ancient Nordic ruin. Click to descend.",
+            "color": "#A855F7", "icon": "dungeon", "linked_map_id": barrow_id,
+        })
         bundle = {
             "format_version": 1,
             "campaign": {
-                "name": "Starter — The Borderlands",
-                "description": "A ready-to-run starter world with a town, a road, and a linked dungeon. Open it and make it yours.",
-                "cover_image": None,
+                "name": "Skyrim — The Province",
+                "description": "A ready-to-run province map of the frozen north with all nine holds pinned and a linked Nordic ruin. Open it and make it your own.",
+                "cover_image": SKYRIM_MAP,
             },
             "maps": [
                 {
                     "id": root_id,
                     "parent_map_id": None,
-                    "name": "World Map",
-                    "image_data": None,
-                    "image_width": 1600,
-                    "image_height": 1000,
+                    "name": "Skyrim",
+                    "image_data": SKYRIM_MAP,
+                    "image_width": 1536,
+                    "image_height": 1024,
                     "layers": [
-                        {
-                            "id": "L1",
-                            "name": "Layer 1",
-                            "visible": True,
-                            "locked": False,
-                            "shapes": [
-                                {"id": str(uuid.uuid4()), "type": "text", "layerId": "L1",
-                                 "x": 360, "y": 240, "size": 40, "color": "#D97706", "text": "Oakhaven"},
-                                {"id": str(uuid.uuid4()), "type": "text", "layerId": "L1",
-                                 "x": 980, "y": 620, "size": 36, "color": "#D97706", "text": "The Deep Barrow"},
-                            ],
-                        }
+                        {"id": "L1", "name": "Layer 1", "visible": True, "locked": False, "shapes": []}
                     ],
-                    "pins": [
-                        {"id": str(uuid.uuid4()), "x": 420, "y": 320, "label": "Oakhaven",
-                         "description": "A small frontier town. Start here.", "color": "#D97706",
-                         "icon": "town", "linked_map_id": None},
-                        {"id": dungeon_pin_id, "x": 1040, "y": 700, "label": "The Deep Barrow",
-                         "description": "An ancient dungeon. Click to descend.", "color": "#A855F7",
-                         "icon": "dungeon", "linked_map_id": dungeon_id},
-                    ],
+                    "pins": pins,
                 },
                 {
-                    "id": dungeon_id,
+                    "id": barrow_id,
                     "parent_map_id": root_id,
-                    "parent_pin_id": dungeon_pin_id,
-                    "name": "The Deep Barrow",
+                    "parent_pin_id": barrow_pin_id,
+                    "name": "Bleak Falls Barrow",
                     "image_data": None,
                     "image_width": 1600,
                     "image_height": 1000,
                     "layers": [
-                        {
-                            "id": "L1",
-                            "name": "Layer 1",
-                            "visible": True,
-                            "locked": False,
-                            "shapes": [
-                                {"id": str(uuid.uuid4()), "type": "text", "layerId": "L1",
-                                 "x": 600, "y": 120, "size": 36, "color": "#A855F7", "text": "Entrance Hall"},
-                            ],
-                        }
+                        {"id": "L1", "name": "Layer 1", "visible": True, "locked": False,
+                         "shapes": [
+                             {"id": str(uuid.uuid4()), "type": "text", "layerId": "L1",
+                              "x": 600, "y": 120, "size": 40, "color": "#A855F7", "text": "Entrance Hall"},
+                         ]}
                     ],
                     "pins": [],
                 },
             ],
         }
         preset = Preset(
-            name="Starter — The Borderlands",
-            description="A ready-to-run starter world with a town and a linked dungeon.",
-            cover_image=None,
+            name="Skyrim — The Province",
+            description="A ready-to-run province map of the frozen north with all nine holds pinned and a linked Nordic ruin.",
+            cover_image=SKYRIM_MAP,
             data=bundle,
         )
         await db.presets.insert_one(preset.model_dump())
-        logger.info("Seeded starter preset campaign")
+        logger.info("Seeded Skyrim starter preset campaign")
     except Exception as e:
         logger.warning(f"Preset seed skipped: {e}")
 

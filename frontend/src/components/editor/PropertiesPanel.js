@@ -244,6 +244,17 @@ export default function PropertiesPanel({
               onCheckedChange={setShowGhostTrails}
             />
           </label>
+          <button
+            data-testid="clear-ghost-trails"
+            onClick={() =>
+              setShapes((arr) =>
+                arr.map((s) => (s.type === "token" && s.trail ? { ...s, trail: [] } : s)),
+              )
+            }
+            className="w-full text-left rounded-lg px-2.5 py-2 bg-black/20 text-sm text-stone-300 hover:bg-amber-500/10 hover:text-amber-400 transition"
+          >
+            Clear all ghost trails
+          </button>
         </div>
       </Section>
 

@@ -9,7 +9,8 @@ import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
-import { Trash2, Link2, Plus, ArrowUpRight, Upload, X } from "lucide-react";
+import { Trash2, Link2, Plus, ArrowUpRight, Upload, X, EyeOff } from "lucide-react";
+import { Switch } from "../ui/switch";
 import { PIN_ICONS, getPinIcon } from "./pinIcons";
 
 const PIN_COLORS = ["#D97706", "#EF4444", "#10B981", "#3B82F6", "#A855F7", "#F3F2F0"];
@@ -117,6 +118,25 @@ export default function NestedMapSheet({
           </div>
 
           <div className="h-px bg-white/5" />
+
+          <label className="flex items-center justify-between rounded-lg px-3 py-2.5 bg-black/30 border border-white/10">
+            <div className="flex items-center gap-2.5">
+              <EyeOff className={`w-4 h-4 ${pin.hidden ? "text-amber-500" : "text-stone-500"}`} />
+              <div>
+                <div className="text-sm font-medium text-stone-100">
+                  Hide from players
+                </div>
+                <div className="text-[10px] font-mono-cart uppercase tracking-wider text-stone-500 mt-0.5">
+                  Faded for you · invisible on the share link
+                </div>
+              </div>
+            </div>
+            <Switch
+              data-testid="pin-hidden-toggle"
+              checked={!!pin.hidden}
+              onCheckedChange={(v) => onUpdate({ hidden: v })}
+            />
+          </label>
 
           <div>
             <Label className="font-mono-cart text-[10px] uppercase tracking-[0.2em] text-stone-500">
