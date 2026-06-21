@@ -23,6 +23,11 @@ db = client[os.environ["DB_NAME"]]
 app = FastAPI(title="Cartographer's Atlas API")
 api_router = APIRouter(prefix="/api")
 
+# ---> ADD THIS BLOCK RIGHT HERE <---
+@app.get("/")
+async def health_check():
+    return {"status": "healthy", "service": "Cartographers Atlas Backend"}
+
 
 # ---------- Models ----------
 def now_iso() -> str:
@@ -590,6 +595,20 @@ async def seed_presets():
         logger.warning(f"Preset seed skipped: {e}")
 
 
+# ... (Your imports and FastAPI initialization are at the top)
+
+# Make sure you included the root health check block we added earlier:
+@app.get("/")
+async def health_check():
+    return {"status": "healthy", "service": "Cartographers Atlas Backend"}
+
+# ... (Your endpoint definitions like @api_router.get(...) go here)
+
+# ---> ADD THIS LINE RIGHT BEFORE THE SHUTDOWN EVENT <---
+app.include_router(api_router)
+
+# This is your existing code at the bottom
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
