@@ -33,10 +33,11 @@ jobs:
       - name: Install and Build
         env:
           CI: false
+          NODE_OPTIONS: "--openssl-legacy-provider"
         run: |
           cd frontend
-          npm install --legacy-peer-deps
-          npm run build
+          npm install --legacy-peer-deps --no-audit --no-fund
+          npx craco build || npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
