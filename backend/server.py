@@ -24,9 +24,16 @@ app = FastAPI(title="Cartographer's Atlas API")
 api_router = APIRouter(prefix="/api")
 
 # ---> ADD THIS BLOCK RIGHT HERE <---
+# ---> ADD THIS BLOCK RIGHT HERE <---
 @app.get("/")
 async def health_check():
     return {"status": "healthy", "service": "Cartographers Atlas Backend"}
+
+@app.head("/")
+async def health_check_head():
+    # HEAD requests require an empty body response
+    return None
+
 
 
 # ---------- Models ----------
