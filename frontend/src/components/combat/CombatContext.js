@@ -110,6 +110,7 @@ const initialState = {
   log: [],
   settings: { ...DEFAULT_SETTINGS },
   savedEncounters: [],
+  pendingDamage: null, // { amount, attackerId, attackerName } when arming map-click damage
 };
 
 const pushLog = (log, type, text, meta) =>
@@ -284,6 +285,48 @@ function reducer(state, action) {
         log = pushLog(log, "info", `${c.name} was auto-removed (dead).`);
       }
       return { ...state, combatants, log };
+    }
+
+    case "ARM_DAMAGE": {
+      const { amount, attackerId, attackerName } = action;
+      if (!amount || amount <= 0) return state;
+      return { ...state, pendingDamage: { amount, attackerId, attackerName } };
+    }
+
+    case "DISARM_DAMAGE":
+      return { ...state, pendingDamage: null };
+
+    case "APPLY_DAMAGE_TO_TOKEN": {
+      const pd = state.pendingDamage;
+      if (!pd) return state;
+      const c = state.combatants.find((x) => x.sourceTokenId === action.tokenId);
+      if (!c) {
+        return {
+          ...state,
+          pendingDamage: null,
+          log: pushLog(state.log, "info", "That token isn't in the tracker — add it to combat first."),
+        };
+      }
+      const amount = Math.abs(pd.amount);
+      const prevHp = c.currentHp;
+      let newHp = prevHp - amount;
+      if (newHp < 0) newHp = 0;
+      let log = pushLog(
+        state.log,
+        "damage",
+        `💥 ${pd.attackerName || "Attacker"} hits ${c.name} for ${amount} damage → ${newHp}/${c.maxHp}`
+      );
+      if (prevHp > 0 && newHp <= 0) {
+        log = pushLog(log, "death", `💀 ${c.name} dropped to 0 HP.`);
+      }
+      let combatants = state.combatants.map((x) =>
+        x.id === c.id ? { ...x, currentHp: newHp } : x
+      );
+      if (state.settings.autoRemoveDead && newHp <= 0) {
+        combatants = combatants.filter((x) => x.id !== c.id);
+        log = pushLog(log, "info", `${c.name} was auto-removed (dead).`);
+      }
+      return { ...state, combatants, log, pendingDamage: null };
     }
 
     case "SET_HP": {
@@ -516,6 +559,7 @@ function lazyInit(storageKey) {
       return {
         ...initialState,
         ...parsed,
+        pendingDamage: null,
         settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) },
       };
     }

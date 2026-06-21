@@ -13,6 +13,7 @@ import {
   ChevronUp,
   Dice6,
   Brain,
+  Crosshair,
 } from "lucide-react";
 
 const STATUS_BADGE = {
@@ -464,6 +465,7 @@ function AttackResultBlock({
   dispatch,
   onClear,
 }) {
+  const { state } = useCombat();
   const { attackName, results } = lastRoll;
   const totalHits = results.filter((r) => !r.isFumble).length;
   const totalDamage = results.reduce(
@@ -623,6 +625,33 @@ function AttackResultBlock({
             <div className="text-[10px] font-mono-cart text-emerald-300 text-center animate-pulse">
               ✓ Applied {applied.amount} damage to{" "}
               {allCombatants.find((c) => c.id === applied.targetId)?.name}
+            </div>
+          )}
+          <button
+            data-testid={`apply-on-map-${combatantId}`}
+            onClick={() =>
+              dispatch({
+                type: "ARM_DAMAGE",
+                amount: totalDamage,
+                attackerId: combatantId,
+                attackerName,
+              })
+            }
+            className="w-full px-2 h-7 rounded-md bg-amber-700/40 hover:bg-amber-600 text-amber-50 text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5"
+            title="Then click the target token on the map to apply this damage"
+          >
+            <Crosshair className="w-3 h-3" /> Apply {totalDamage} to a token on the map
+          </button>
+          {state?.pendingDamage && (
+            <div className="text-[10px] font-mono-cart text-amber-300 text-center animate-pulse flex items-center justify-center gap-2">
+              Click a token on the map…
+              <button
+                data-testid={`cancel-apply-on-map-${combatantId}`}
+                onClick={() => dispatch({ type: "DISARM_DAMAGE" })}
+                className="underline hover:text-amber-100"
+              >
+                cancel
+              </button>
             </div>
           )}
         </div>

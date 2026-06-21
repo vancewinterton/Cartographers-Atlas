@@ -40,6 +40,7 @@ function circleIntersectsShape(s, p, r) {
 import { useEffect, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { getPinIcon } from "./pinIcons";
+import { Lock } from "lucide-react";
 
 const HTML_SHAPE_TYPES = new Set(["asset", "token", "grid", "text"]);
 
@@ -1115,7 +1116,23 @@ function MoveableShape({ shape, W, H, tool, readOnly, viewerCanDragTokens = fals
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-      />
+      >
+        {locked && !readOnly && (
+          <button
+            data-testid={`grid-unlock-${shape.id}`}
+            title="Grid locked — click to unlock & edit"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick(e);
+            }}
+            style={{ pointerEvents: "auto" }}
+            className="absolute top-1 left-1 w-7 h-7 rounded-lg bg-black/70 backdrop-blur text-amber-400 hover:text-amber-300 hover:bg-black/90 flex items-center justify-center ring-1 ring-amber-500/40"
+          >
+            <Lock className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
     );
   }
 

@@ -9,7 +9,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Button } from "../ui/button";
 import { Slider } from "../ui/slider";
-import { Trash2, Swords, ImageIcon, Grid3x3, Copy, Eye, EyeOff, Type, Library, Lock, Unlock } from "lucide-react";
+import { Trash2, Swords, ImageIcon, Grid3x3, Copy, Eye, EyeOff, Type, Library, Lock, Unlock, Shield } from "lucide-react";
 
 const COLORS = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#A855F7", "#F3F2F0", "#0B0A09"];
 
@@ -165,6 +165,32 @@ export default function ShapeEditPopover({ shape, onUpdate, onDelete, onDuplicat
                       }`}
                     />
                   ))}
+                </div>
+              </Field>
+              <Field label="Side (affects combat import)">
+                <div className="flex gap-2">
+                  <button
+                    data-testid="shape-make-hero"
+                    onClick={() => patch({ color: "#3B82F6" })}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm font-medium transition ${
+                      (local.color || "").toLowerCase() === "#3b82f6"
+                        ? "bg-blue-500/15 border-blue-500/40 text-blue-300"
+                        : "bg-black/30 border-white/10 text-stone-300 hover:bg-white/5"
+                    }`}
+                  >
+                    <Shield className="w-4 h-4" /> Hero
+                  </button>
+                  <button
+                    data-testid="shape-make-enemy"
+                    onClick={() => patch({ color: "#EF4444" })}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm font-medium transition ${
+                      (local.color || "").toLowerCase() === "#ef4444"
+                        ? "bg-red-500/15 border-red-500/40 text-red-300"
+                        : "bg-black/30 border-white/10 text-stone-300 hover:bg-white/5"
+                    }`}
+                  >
+                    <Swords className="w-4 h-4" /> Enemy
+                  </button>
                 </div>
               </Field>
             </>

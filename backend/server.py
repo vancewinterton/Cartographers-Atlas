@@ -491,85 +491,101 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def seed_presets():
-    """Seed a starter template campaign the first time the app boots so the
+    """Seed starter template campaigns the first time the app boots so the
     Templates gallery isn't empty. DMs add their own via 'Save as Template'."""
     try:
         existing = await db.presets.count_documents({})
         if existing:
             return
-        SKYRIM_MAP = "https://static.prod-images.emergentagent.com/jobs/99a2a3ba-404d-48da-ad3a-722440c9e423/images/d99fbfc8a562320cbd733f17299d4eb4e3e2c58f0ec8f2375a5aabed69eb4579.png"
-        root_id = str(uuid.uuid4())
-        barrow_id = str(uuid.uuid4())
-        barrow_pin_id = str(uuid.uuid4())
-        holds = [
-            ("Solitude", 360, 230, "town", "#D97706"),
-            ("Dawnstar", 700, 210, "port", "#3B82F6"),
-            ("Winterhold", 1040, 250, "magic", "#A855F7"),
-            ("Morthal", 470, 360, "camp", "#10B981"),
-            ("Whiterun", 720, 500, "castle", "#D97706"),
-            ("Windhelm", 1080, 430, "castle", "#3B82F6"),
-            ("Markarth", 230, 520, "ruins", "#EF4444"),
-            ("Falkreath", 600, 760, "forest", "#10B981"),
-            ("Riften", 1100, 720, "town", "#D97706"),
-        ]
-        pins = [
-            {"id": str(uuid.uuid4()), "x": x, "y": y, "label": name,
-             "description": f"The hold of {name}.", "color": color, "icon": icon,
-             "linked_map_id": None}
-            for (name, x, y, icon, color) in holds
-        ]
-        pins.append({
-            "id": barrow_pin_id, "x": 520, "y": 430, "label": "Bleak Falls Barrow",
-            "description": "An ancient Nordic ruin. Click to descend.",
-            "color": "#A855F7", "icon": "dungeon", "linked_map_id": barrow_id,
-        })
-        bundle = {
-            "format_version": 1,
-            "campaign": {
+        TEMPLATES = [
+            {
                 "name": "Skyrim — The Province",
-                "description": "A ready-to-run province map of the frozen north with all nine holds pinned and a linked Nordic ruin. Open it and make it your own.",
-                "cover_image": SKYRIM_MAP,
+                "desc": "A ready-to-run province map of the frozen north with all nine holds pinned and a linked Nordic ruin.",
+                "image": "https://static.prod-images.emergentagent.com/jobs/99a2a3ba-404d-48da-ad3a-722440c9e423/images/d99fbfc8a562320cbd733f17299d4eb4e3e2c58f0ec8f2375a5aabed69eb4579.png",
+                "map_name": "Skyrim",
+                "pins": [
+                    ("Solitude", 360, 230, "town", "#D97706"),
+                    ("Dawnstar", 700, 210, "port", "#3B82F6"),
+                    ("Winterhold", 1040, 250, "magic", "#A855F7"),
+                    ("Morthal", 470, 360, "camp", "#10B981"),
+                    ("Whiterun", 720, 500, "castle", "#D97706"),
+                    ("Windhelm", 1080, 430, "castle", "#3B82F6"),
+                    ("Markarth", 230, 520, "ruins", "#EF4444"),
+                    ("Falkreath", 600, 760, "forest", "#10B981"),
+                    ("Riften", 1100, 720, "town", "#D97706"),
+                ],
+                "dungeon": ("Bleak Falls Barrow", 520, 430, "Entrance Hall"),
             },
-            "maps": [
-                {
-                    "id": root_id,
-                    "parent_map_id": None,
-                    "name": "Skyrim",
-                    "image_data": SKYRIM_MAP,
-                    "image_width": 1536,
-                    "image_height": 1024,
-                    "layers": [
-                        {"id": "L1", "name": "Layer 1", "visible": True, "locked": False, "shapes": []}
-                    ],
-                    "pins": pins,
-                },
-                {
-                    "id": barrow_id,
-                    "parent_map_id": root_id,
-                    "parent_pin_id": barrow_pin_id,
-                    "name": "Bleak Falls Barrow",
-                    "image_data": None,
-                    "image_width": 1600,
-                    "image_height": 1000,
-                    "layers": [
-                        {"id": "L1", "name": "Layer 1", "visible": True, "locked": False,
-                         "shapes": [
-                             {"id": str(uuid.uuid4()), "type": "text", "layerId": "L1",
-                              "x": 600, "y": 120, "size": 40, "color": "#A855F7", "text": "Entrance Hall"},
-                         ]}
-                    ],
-                    "pins": [],
-                },
-            ],
-        }
-        preset = Preset(
-            name="Skyrim — The Province",
-            description="A ready-to-run province map of the frozen north with all nine holds pinned and a linked Nordic ruin.",
-            cover_image=SKYRIM_MAP,
-            data=bundle,
-        )
-        await db.presets.insert_one(preset.model_dump())
-        logger.info("Seeded Skyrim starter preset campaign")
+            {
+                "name": "Hyrule — The Kingdom",
+                "desc": "The green kingdom of Hyrule with its castle town, Death Mountain, and a linked castle interior.",
+                "image": "https://static.prod-images.emergentagent.com/jobs/99a2a3ba-404d-48da-ad3a-722440c9e423/images/25ae7fbde84bf688ce8d5199d32d0ab0bc939ea987801efb7405b6492abf4eec.png",
+                "map_name": "Hyrule Field",
+                "pins": [
+                    ("Hyrule Castle Town", 700, 480, "castle", "#D97706"),
+                    ("Death Mountain", 760, 200, "mountain", "#EF4444"),
+                    ("Zora's Domain", 280, 320, "port", "#3B82F6"),
+                    ("Gerudo Desert", 300, 760, "camp", "#FBBF24"),
+                    ("Kokiri Forest", 1150, 560, "forest", "#10B981"),
+                    ("Kakariko Village", 950, 700, "town", "#D97706"),
+                ],
+                "dungeon": ("Hyrule Castle", 700, 440, "Throne Room"),
+            },
+            {
+                "name": "Baldur's Gate — Sword Coast",
+                "desc": "The sprawling river city of Baldur's Gate and the Sword Coast, with a linked sewer dungeon.",
+                "image": "https://static.prod-images.emergentagent.com/jobs/99a2a3ba-404d-48da-ad3a-722440c9e423/images/408c1dac833f604dbe9038ce4738b36882eb41fa6a332d12d39c5c6e29f1ac2c.png",
+                "map_name": "Baldur's Gate",
+                "pins": [
+                    ("Upper City", 760, 360, "castle", "#D97706"),
+                    ("Lower City", 760, 560, "town", "#D97706"),
+                    ("The Docks", 560, 660, "port", "#3B82F6"),
+                    ("Wyrm's Crossing", 360, 520, "watch", "#A855F7"),
+                    ("Candlekeep", 200, 760, "magic", "#A855F7"),
+                    ("Sword Coast Road", 1100, 460, "camp", "#10B981"),
+                ],
+                "dungeon": ("The Sewers", 760, 600, "Flooded Tunnel"),
+            },
+        ]
+        for tpl in TEMPLATES:
+            root_id = str(uuid.uuid4())
+            dungeon_id = str(uuid.uuid4())
+            dungeon_pin_id = str(uuid.uuid4())
+            d_name, d_x, d_y, d_room = tpl["dungeon"]
+            pins = [
+                {"id": str(uuid.uuid4()), "x": x, "y": y, "label": name,
+                 "description": f"{name}.", "color": color, "icon": icon,
+                 "linked_map_id": None}
+                for (name, x, y, icon, color) in tpl["pins"]
+            ]
+            pins.append({
+                "id": dungeon_pin_id, "x": d_x, "y": d_y, "label": d_name,
+                "description": f"{d_name} — click to enter.", "color": "#A855F7",
+                "icon": "dungeon", "linked_map_id": dungeon_id,
+            })
+            bundle = {
+                "format_version": 1,
+                "campaign": {"name": tpl["name"], "description": tpl["desc"], "cover_image": tpl["image"]},
+                "maps": [
+                    {
+                        "id": root_id, "parent_map_id": None, "name": tpl["map_name"],
+                        "image_data": tpl["image"], "image_width": 1536, "image_height": 1024,
+                        "layers": [{"id": "L1", "name": "Layer 1", "visible": True, "locked": False, "shapes": []}],
+                        "pins": pins,
+                    },
+                    {
+                        "id": dungeon_id, "parent_map_id": root_id, "parent_pin_id": dungeon_pin_id,
+                        "name": d_name, "image_data": None, "image_width": 1600, "image_height": 1000,
+                        "layers": [{"id": "L1", "name": "Layer 1", "visible": True, "locked": False,
+                                     "shapes": [{"id": str(uuid.uuid4()), "type": "text", "layerId": "L1",
+                                                 "x": 600, "y": 120, "size": 40, "color": "#A855F7", "text": d_room}]}],
+                        "pins": [],
+                    },
+                ],
+            }
+            preset = Preset(name=tpl["name"], description=tpl["desc"], cover_image=tpl["image"], data=bundle)
+            await db.presets.insert_one(preset.model_dump())
+        logger.info("Seeded %d starter preset campaigns", len(TEMPLATES))
     except Exception as e:
         logger.warning(f"Preset seed skipped: {e}")
 

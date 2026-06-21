@@ -14,8 +14,9 @@ import TokenLibraryPanel from "../components/editor/TokenLibraryPanel";
 import { saveToken } from "../lib/tokenLibrary";
 import CombatTrackerPanel from "../components/combat/CombatTrackerPanel";
 import { CombatProvider, useCombat } from "../components/combat/CombatContext";
+import AdSlot from "../components/AdSlot";
 import useMapPolling from "../lib/useMapPolling";
-import { ChevronLeft as ChevronLeftIcon, Swords } from "lucide-react";
+import { ChevronLeft as ChevronLeftIcon, Swords, Crosshair } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,6 +66,7 @@ export default function Editor() {
   const [showHealthBars, setShowHealthBars] = useState(true);
   const [showGhostTrails, setShowGhostTrails] = useState(true);
   const [combatOpen, setCombatOpen] = useState(false);
+  const [pendingDamage, setPendingDamage] = useState(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryPrefill, setLibraryPrefill] = useState(null);
 
@@ -443,6 +445,7 @@ export default function Editor() {
   return (
     <CombatProvider key={campaignId} storageKey={`combat_state_${campaignId}`}>
     <CombatDispatchBridge dispatchRef={combatDispatchRef} />
+    <CombatStateBridge onPendingDamage={setPendingDamage} />
     <div
       className="h-screen w-screen overflow-hidden canvas-bg relative"
       data-testid="editor-page"
@@ -464,7 +467,14 @@ export default function Editor() {
         onPinClick={openPinSheet}
         onAIRegionSelected={setAiRegion}
         pinColorFilter={pinColorFilter}
-        onShapeClick={(s) => setEditingShape(s)}
+        onShapeClick={(s) => {
+          if (pendingDamage && s.type === "token") {
+            combatDispatchRef.current?.({ type: "APPLY_DAMAGE_TO_TOKEN", tokenId: s.id });
+            toast.success(`Applied ${pendingDamage.amount} damage to ${s.label || "token"}`);
+            return;
+          }
+          setEditingShape(s);
+        }}
         showTokenLabels={showTokenLabels}
         showHealthBars={showHealthBars}
         showGhostTrails={showGhostTrails}
@@ -497,6 +507,36 @@ export default function Editor() {
         canRedo={redoStack.current.length > 0}
         onOpenPaintPanel={() => setPaintPanelOpen(true)}
       />
+
+      {/* Editor menu ad — fills the empty top-center space on wide screens */}
+      <div className="hidden xl:block absolute top-4 left-1/2 -translate-x-1/2 z-20 w-[300px] pointer-events-auto">
+        <AdSlot
+          orientation="horizontal"
+          dismissible
+          testId="editor-ad-top"
+          className="glass !border-white/10 h-[48px]"
+        />
+      </div>
+
+      {pendingDamage && (
+        <div
+          data-testid="damage-targeting-banner"
+          className="absolute top-20 left-1/2 -translate-x-1/2 z-40 glass rounded-full px-4 py-2 flex items-center gap-3 ring-1 ring-amber-500/40 animate-pulse"
+        >
+          <Crosshair className="w-4 h-4 text-amber-400" />
+          <span className="text-sm text-stone-100">
+            Click a token to apply{" "}
+            <span className="font-bold text-amber-400">{pendingDamage.amount}</span> damage
+          </span>
+          <button
+            data-testid="cancel-damage-targeting"
+            onClick={() => combatDispatchRef.current?.({ type: "DISARM_DAMAGE" })}
+            className="text-xs text-stone-400 hover:text-stone-100 underline"
+          >
+            cancel
+          </button>
+        </div>
+      )}
 
       {paintPanelOpen && (
         <PaintPanel
@@ -846,5 +886,15 @@ function cryptoRandom() {
 function CombatDispatchBridge({ dispatchRef }) {
   const { dispatch } = useCombat();
   dispatchRef.current = dispatch;
+  return null;
+}
+
+// Lifts the combat tracker's pendingDamage (map-click targeting) up to the
+// editor so token clicks can apply damage and a targeting banner can show.
+function CombatStateBridge({ onPendingDamage }) {
+  const { state } = useCombat();
+  useEffect(() => {
+    onPendingDamage(state.pendingDamage || null);
+  }, [state.pendingDamage, onPendingDamage]);
   return null;
 }

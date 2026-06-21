@@ -74,49 +74,50 @@ export default function TopBar({
     }
   };
 
-  const copyLink = async (mode = "view") => {
+  const copyLink = (mode = "view") => {
     const url =
       mode === "edit"
         ? `${window.location.origin}/campaign/${campaign.id}`
         : shareUrl;
     if (!url) return;
-    // First try the modern clipboard API; fall back to execCommand for iframe contexts
-    // (the Emergent preview is iframed and often lacks clipboard-write permission).
-    const fallbackCopy = () => {
-      const ta = document.createElement("textarea");
-      ta.value = url;
-      ta.setAttribute("readonly", "");
-      ta.style.position = "fixed";
-      ta.style.top = "-9999px";
-      document.body.appendChild(ta);
-      ta.select();
-      let ok = false;
-      try {
-        ok = document.execCommand("copy");
-      } catch {
-        ok = false;
-      }
-      document.body.removeChild(ta);
-      return ok;
-    };
-    let success = false;
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        success = true;
-      }
-    } catch {
-      success = false;
-    }
-    if (!success) success = fallbackCopy();
-    if (success) {
+    const markCopied = () => {
       setCopied(mode);
       setTimeout(() => setCopied(false), 1500);
       toast.success(mode === "edit" ? "Edit link copied" : "View link copied");
-    } else {
-      // Last resort: show a prompt with the URL so the user can copy manually
-      toast.error("Couldn't auto-copy — the URL is shown in the input above");
+    };
+    // Synchronous execCommand FIRST — stays inside the user gesture, which is the
+    // only reliable path inside sandboxed/iframed previews. (An awaited
+    // navigator.clipboard call breaks the gesture and silently fails.)
+    const ta = document.createElement("textarea");
+    ta.value = url;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, url.length);
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch {
+      ok = false;
     }
+    document.body.removeChild(ta);
+    if (ok) {
+      markCopied();
+      return;
+    }
+    // Secondary: async clipboard API (works in the deployed, non-iframe app)
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(url)
+        .then(markCopied)
+        .catch(() =>
+          toast.error("Couldn't auto-copy — select the link and press Ctrl/Cmd+C"),
+        );
+      return;
+    }
+    toast.error("Couldn't auto-copy — select the link and press Ctrl/Cmd+C");
   };
 
   const saveAsTemplate = async () => {

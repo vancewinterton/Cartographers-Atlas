@@ -5,7 +5,7 @@ import MapCanvas from "../components/editor/MapCanvas";
 import PaintPanel from "../components/editor/PaintPanel";
 import TokenLibraryPanel from "../components/editor/TokenLibraryPanel";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet";
-import { Compass, MapPinned, ArrowUpRight, ExternalLink, Wifi, Hand, Paintbrush, Library } from "lucide-react";
+import { Compass, MapPinned, ArrowUpRight, ExternalLink, Wifi, Hand, Paintbrush, Library, Swords, Shield } from "lucide-react";
 import { Button } from "../components/ui/button";
 import AdSlot from "../components/AdSlot";
 import useMapPolling from "../lib/useMapPolling";
@@ -241,6 +241,30 @@ export default function SharePage() {
           }`}
         >
           <Paintbrush className="w-4 h-4" />
+        </button>
+        <button
+          data-testid="viewer-tool-hero-token"
+          onClick={() => setViewerTool("hero-token")}
+          title="Place a hero token"
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+            viewerTool === "hero-token"
+              ? "bg-white/10 text-blue-400 ring-1 ring-blue-500/30"
+              : "text-stone-400 hover:bg-white/5 hover:text-stone-100"
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+        </button>
+        <button
+          data-testid="viewer-tool-enemy-token"
+          onClick={() => setViewerTool("token")}
+          title="Place an enemy token"
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+            viewerTool === "token"
+              ? "bg-white/10 text-red-400 ring-1 ring-red-500/30"
+              : "text-stone-400 hover:bg-white/5 hover:text-stone-100"
+          }`}
+        >
+          <Swords className="w-4 h-4" />
         </button>
         <button
           data-testid="viewer-tool-library"
