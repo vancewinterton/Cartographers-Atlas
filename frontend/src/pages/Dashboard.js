@@ -262,7 +262,7 @@ export default function Dashboard() {
             </span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {presets.map((p) => (
+            (Array.isArray(presets) ? presets : []).map((preset) => ( ... ))
               <PresetCard
                 key={p.id}
                 preset={p}
@@ -293,7 +293,7 @@ export default function Dashboard() {
           <EmptyState onCreate={() => setOpen(true)} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {campaigns.map((c) => (
+            (Array.isArray(campaigns) ? campaigns : []).map((campaign) => ( ... ))
               <CampaignCard
                 key={c.id}
                 campaign={c}
