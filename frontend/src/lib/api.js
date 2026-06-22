@@ -28,7 +28,7 @@ export const Share = {
 
 export const Presets = {
   list: () => api.get("/presets").then((r) => r.data),
-  use: (id) => api.post(`/presets/${id}/use`, {}, { timeout: 60000 }).then((r) => r.data),
+  fetch: (id) => api.post(`/presets/${id}/use`, {}, { timeout: 60000 }).then((r) => r.data),
   saveFrom: (campaignId) =>
     api.post(`/campaigns/${campaignId}/save-as-preset`, {}, { timeout: 60000 }).then((r) => r.data),
   remove: (id) => api.delete(`/presets/${id}`).then((r) => r.data),
