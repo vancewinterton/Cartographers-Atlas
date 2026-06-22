@@ -58,7 +58,7 @@ export default function Dashboard() {
   const handleUsePreset = async (preset) => {
     setUsingPreset(preset.id);
     try {
-      const created = await Presets.use(preset.id);
+      const created = await Presets.fetch(preset.id);
       toast.success(`Created "${created.name}" from template`);
       navigate(`/campaign/${created.id}`);
     } catch (e) {
